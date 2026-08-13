@@ -8,6 +8,7 @@ export interface Service {
 export interface Stylist {
   id: string;
   name: string;
+  phone: string;
   isAvailable: boolean;
 }
 
@@ -41,9 +42,9 @@ export const MOCK_SERVICES: Service[] = [
 ];
 
 export const MOCK_STYLISTS: Stylist[] = [
-  { id: 'chair1', name: 'Rahul (Chair 1)', isAvailable: true },
-  { id: 'chair2', name: 'Amit (Chair 2)', isAvailable: false },
-  { id: 'chair3', name: 'Vikram (Chair 3)', isAvailable: true },
+  { id: 'chair1', name: 'Rahul', phone: '9876543210', isAvailable: true },
+  { id: 'chair2', name: 'Amit', phone: '9876543211', isAvailable: false },
+  { id: 'chair3', name: 'Vikram', phone: '9876543212', isAvailable: true },
 ];
 
 // Helper to get relative times

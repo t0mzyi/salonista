@@ -23,7 +23,7 @@ export default function BackButton({ to, label = 'Back' }: BackButtonProps) {
         border: '1px solid var(--border)',
         borderRadius: 'var(--r-pill)',
         padding: '8px 14px 8px 10px',
-        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        fontFamily: 'Poppins, sans-serif',
         fontSize: 14,
         fontWeight: 700,
         color: 'var(--primary)',

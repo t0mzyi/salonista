@@ -34,14 +34,15 @@ function BottomNav() {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0,
-      background: 'rgba(255, 255, 255, 0.85)',
+      position: 'fixed', bottom: 20, left: 20, right: 20,
+      background: 'rgba(255,255,255,0.85)',
       backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-      borderTop: '1px solid rgba(255, 255, 255, 0.3)',
-      padding: '16px 20px calc(16px + env(safe-area-inset-bottom))',
+      border: '1px solid rgba(255,255,255,0.5)',
+      borderRadius: 'var(--r-pill)',
+      padding: '16px 20px',
       display: 'flex', justifyContent: 'space-around', alignItems: 'center',
       zIndex: 100,
-      boxShadow: 'var(--shadow-nav)',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
     }}>
       {tabs.map(tab => {
         const active = path === tab.id;
@@ -52,7 +53,7 @@ function BottomNav() {
             transition: 'color 0.2s',
           }}>
             <tab.icon size={24} strokeWidth={active ? 2.5 : 2} />
-            <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 11, fontWeight: 700 }}>
+            <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 11, fontWeight: 700 }}>
               {tab.label}
             </span>
           </button>
@@ -86,7 +87,7 @@ function DiscoveryScreen() {
         padding: '14px var(--page-h-pad)',
       }}>
         <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
-          <span style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: 'var(--primary)' }}>
+          <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--primary)' }}>
             Salonista
           </span>
           <button style={{
@@ -101,7 +102,7 @@ function DiscoveryScreen() {
         {/* Location row */}
         <button className="flex items-center gap-2" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
           <MapPin size={14} color="var(--primary)" />
-          <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+          <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
             {location}
           </span>
           <ChevronLeft size={14} color="var(--ink-muted)" style={{ transform: 'rotate(-90deg)' }} />
@@ -124,10 +125,10 @@ function DiscoveryScreen() {
           position: 'absolute', bottom: 0, left: 0, right: 0,
           padding: 24,
         }}>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: 4 }}>
+          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 24, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: 4 }}>
             Featured Experience
           </div>
-          <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.9)' }}>
+          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.9)' }}>
             Fade & Shave Studio
           </div>
         </div>
@@ -150,7 +151,7 @@ function DiscoveryScreen() {
               <span className="h3" style={{ flex: 1, marginRight: 12 }}>{s.name}</span>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
-                fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 13, fontWeight: 700,
+                fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700,
                 background: 'var(--tag-warn-bg)', color: 'var(--tag-warn-ink)',
                 padding: '3px 9px', borderRadius: 'var(--r-pill)',
               }}>
@@ -213,7 +214,7 @@ function SalonProfile() {
       <div className="flex items-center gap-3" style={{ marginBottom: 20 }}>
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
-          fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 14, fontWeight: 700,
+          fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 700,
           background: 'var(--tag-warn-bg)', color: 'var(--tag-warn-ink)',
           padding: '4px 12px', borderRadius: 'var(--r-pill)',
         }}>
@@ -376,7 +377,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
 
               {/* Name */}
               <div style={{
-                fontFamily: 'Fraunces, serif',
+                fontFamily: 'Poppins, sans-serif',
                 fontSize: 16,
                 fontWeight: 700,
                 color: sel ? 'var(--primary)' : 'var(--ink)',
@@ -392,7 +393,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--r-pill)',
                 padding: '3px 8px',
-                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                fontFamily: 'Poppins, sans-serif',
                 fontSize: 12, fontWeight: 600,
                 color: 'var(--ink-muted)',
                 alignSelf: 'flex-start',
@@ -402,7 +403,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
 
               {/* Price */}
               <div style={{
-                fontFamily: 'Fraunces, serif',
+                fontFamily: 'Poppins, sans-serif',
                 fontSize: 20, fontWeight: 700,
                 color: sel ? 'var(--primary)' : 'var(--ink)',
                 marginTop: 'auto',
@@ -440,7 +441,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
                       border: '1px solid var(--primary)',
                       borderRadius: 'var(--r-pill)',
                       padding: '4px 10px',
-                      fontFamily: 'Plus Jakarta Sans, sans-serif',
+                      fontFamily: 'Poppins, sans-serif',
                       fontSize: 12, fontWeight: 700,
                       color: 'var(--primary)',
                     }}>
@@ -452,7 +453,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
 
               <div className="flex justify-between items-center">
                 <div>
-                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>
+                  <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>
                     ₹{total}
                   </div>
                   <div className="caption">{totalMin} min · {cart.length} service{cart.length > 1 ? 's' : ''}</div>
@@ -491,7 +492,7 @@ function SlotPicker() {
             background: 'var(--surface)',
             border: `1.5px solid ${time === s ? 'var(--primary)' : 'var(--border)'}`,
             borderRadius: 'var(--r-md)', padding: '13px',
-            fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 15, fontWeight: 600,
+            fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600,
             color: time === s ? 'var(--primary)' : 'var(--ink)', cursor: 'pointer',
           }}>
             {s}
@@ -582,7 +583,7 @@ function ConfirmationScreen() {
           border: '1px solid var(--accent)',
           borderRadius: 'var(--r-md)', padding: 16,
         }}>
-          <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 14, fontWeight: 700, color: 'var(--tag-warn-ink)', marginBottom: 4 }}>
+          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 700, color: 'var(--tag-warn-ink)', marginBottom: 4 }}>
             ⚠ Arrival reminder
           </div>
           <p className="caption">Please arrive within 15 min of your slot or it may be released to the waitlist.</p>
@@ -613,8 +614,8 @@ function StatusScreen() {
         background: 'var(--primary)', border: 'none', marginBottom: 16, padding: '36px 20px',
       }}>
         <div className="label" style={{ color: 'rgba(255,255,255,0.75)', marginBottom: 6 }}>Estimated wait</div>
-        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 72, fontWeight: 700, color: '#fff', lineHeight: 1 }}>15</div>
-        <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: 18, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>minutes</div>
+        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 72, fontWeight: 700, color: '#fff', lineHeight: 1 }}>15</div>
+        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>minutes</div>
       </div>
 
       {/* Delay notice */}
@@ -636,7 +637,7 @@ function StatusScreen() {
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
               background: row.active ? 'var(--primary)' : 'var(--tag-ok-bg)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: 16,
+              fontFamily: 'Poppins, sans-serif', fontWeight: 700, fontSize: 16,
               color: row.active ? '#fff' : 'var(--ink-muted)',
             }}>{row.pos}</div>
             <div>
@@ -699,23 +700,79 @@ function QRLanding() {
 /* ─── Screen 7: Appointments ─── */
 function AppointmentsScreen() {
   const navigate = useNavigate();
+  const [bookings, setBookings] = useState(MOCK_BOOKINGS.filter(b => b.isAppBooking));
+
+  const statusColors: Record<string, string> = {
+    in_progress: 'tag tag-critical', booked: 'tag tag-warn',
+    completed: 'tag tag-ok', cancelled: 'tag tag-ok', no_show: 'tag tag-critical',
+  };
+  const statusLabels: Record<string, string> = {
+    in_progress: 'In Progress', booked: 'Upcoming',
+    completed: 'Done', cancelled: 'Cancelled', no_show: 'No-show',
+  };
+
+  const handleCancel = (id: string) => {
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' as const } : b));
+  };
+
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
-      className="page-container">
+      className="page-container" style={{ paddingBottom: 100 }}>
       <div className="ios-header" style={{ marginTop: 24 }}>
         <div className="ios-header-date">Your Activity</div>
         <div className="ios-header-title">Bookings</div>
       </div>
 
-      {MOCK_BOOKINGS.filter(b => b.isAppBooking).map(b => (
-        <div key={b.id} className="card interactive" onClick={() => navigate('/status')} style={{ marginBottom: 12 }}>
-          <div className="flex justify-between items-start" style={{ marginBottom: 8 }}>
-            <div className="h3">Fade & Shave Studio</div>
-            <span className="tag tag-ok">Completed</span>
-          </div>
-          <div className="caption">{new Date(b.startTime).toLocaleDateString('en-IN')}</div>
+      {bookings.length === 0 && (
+        <div className="card" style={{ textAlign: 'center', padding: 32 }}>
+          <div className="body">No bookings yet.</div>
+          <button className="btn-primary" style={{ marginTop: 16, width: 'auto', margin: '16px auto 0' }} onClick={() => navigate('/')}>
+            Browse Salons
+          </button>
         </div>
-      ))}
+      )}
+
+      <div className="flex-col" style={{ gap: 12 }}>
+        {bookings.map(b => {
+          const svc = MOCK_SERVICES.find(s => s.id === b.serviceIds[0]);
+          const canCancel = ['booked', 'in_progress'].includes(b.status);
+          return (
+            <div key={b.id} className="card" style={{ marginBottom: 0, padding: '16px 18px' }}>
+              <div className="flex justify-between items-start" style={{ marginBottom: 8 }}>
+                <div>
+                  <div className="h3" style={{ fontSize: 15 }}>Fade & Shave Studio</div>
+                  <div className="caption" style={{ marginTop: 2 }}>
+                    {svc?.name} · {new Date(b.startTime).toLocaleDateString('en-IN')} at {new Date(b.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+                <span className={statusColors[b.status] ?? 'tag'}>{statusLabels[b.status] ?? b.status}</span>
+              </div>
+
+              {canCancel && (
+                <div className="flex gap-2" style={{ marginTop: 10 }}>
+                  <button className="btn-secondary" style={{ flex: 1, padding: '8px 12px', fontSize: 13 }}
+                    onClick={() => navigate('/slot')}>
+                    Reschedule
+                  </button>
+                  <button className="btn-secondary" style={{
+                    flex: 1, padding: '8px 12px', fontSize: 13,
+                    color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)',
+                  }} onClick={() => handleCancel(b.id)}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {b.status === 'completed' && (
+                <button className="btn-secondary" style={{ marginTop: 10, padding: '8px 12px', fontSize: 13 }}
+                  onClick={() => navigate('/status')}>
+                  View Details
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </motion.div>
   );
 }
@@ -728,7 +785,7 @@ function UserScreen() {
 
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
-      className="page-container">
+      className="page-container" style={{ paddingBottom: 100 }}>
       <div className="ios-header" style={{ marginTop: 24 }}>
         <div className="ios-header-title">Profile</div>
       </div>
@@ -749,7 +806,7 @@ function UserScreen() {
             onBlur={() => setIsEditing(false)}
             onKeyDown={e => e.key === 'Enter' && setIsEditing(false)}
             style={{
-              fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700,
+              fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700,
               textAlign: 'center', border: '1px solid var(--border)',
               borderRadius: 'var(--r-md)', padding: '4px 8px',
               color: 'var(--ink)', width: '80%', maxWidth: 200, margin: '0 auto',
@@ -774,7 +831,7 @@ function UserScreen() {
               <User size={20} color="var(--accent)" />
             </div>
             <div>
-              <div className="h3">Admin (Temp)</div>
+              <div className="h3">Admin Portal</div>
               <div className="caption" style={{ marginTop: 4 }}>Platform & subscription control</div>
             </div>
           </div>
@@ -787,19 +844,50 @@ function UserScreen() {
             </div>
             <div>
               <div className="h3" style={{ color: 'var(--primary)' }}>List your salon</div>
-              <div className="caption" style={{ marginTop: 4 }}>Are you a salonista tired of long queues? Partner with us.</div>
+              <div className="caption" style={{ marginTop: 4 }}>Are you a salonista? Partner with us.</div>
             </div>
           </div>
         </div>
-        
-        <div className="card interactive" onClick={() => navigate('/staff')} style={{ marginBottom: 0 }}>
+      </div>
+
+      <div className="h3" style={{ marginTop: 32, marginBottom: 12 }}>Salonista Dashboards</div>
+
+      <div className="flex-col gap-3">
+        {/* Single Owner Dashboard */}
+        <div className="card interactive" onClick={() => navigate('/owner/solo/dashboard')} style={{ marginBottom: 0 }}>
           <div className="flex items-start gap-4">
             <div className="icon-box" style={{ background: 'var(--tag-ok-bg)' }}>
-              <CalendarDays size={20} color="var(--ink)" />
+              <User size={20} color="var(--tag-ok-ink)" />
             </div>
             <div>
-              <div className="h3">Salonista Dashboard</div>
-              <div className="caption" style={{ marginTop: 4 }}>Manage your salon's live queue.</div>
+              <div className="h3">Single Owner Dashboard</div>
+              <div className="caption" style={{ marginTop: 4 }}>For salons run by one person — you handle everything.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Owner + Staff Dashboard */}
+        <div className="card interactive" onClick={() => navigate('/owner/team/dashboard')} style={{ marginBottom: 0 }}>
+          <div className="flex items-start gap-4">
+            <div className="icon-box" style={{ background: 'var(--tag-warn-bg)' }}>
+              <CalendarDays size={20} color="var(--tag-warn-ink)" />
+            </div>
+            <div>
+              <div className="h3">Owner + Staff Dashboard</div>
+              <div className="caption" style={{ marginTop: 4 }}>Manage staff, view all chairs, and control operations.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Staff Dashboard */}
+        <div className="card interactive" onClick={() => navigate('/staff')} style={{ marginBottom: 0 }}>
+          <div className="flex items-start gap-4">
+            <div className="icon-box" style={{ background: 'var(--tag-critical-bg)' }}>
+              <CalendarDays size={20} color="var(--primary)" />
+            </div>
+            <div>
+              <div className="h3">Staff Dashboard</div>
+              <div className="caption" style={{ marginTop: 4 }}>Your own queue only — add walk-ins, mark done.</div>
             </div>
           </div>
         </div>
@@ -808,9 +896,11 @@ function UserScreen() {
   );
 }
 
-/* ─── Screen 9: List Salon (Temp) ─── */
+/* ─── Screen 9: List Salon ─── */
 function ListSalonScreen() {
   const navigate = useNavigate();
+  const [salonType, setSalonType] = useState<'solo' | 'team' | null>(null);
+
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
       className="page-container flex-col" style={{ minHeight: '100vh' }}>
@@ -833,6 +923,35 @@ function ListSalonScreen() {
         </p>
       </div>
 
+      {/* Salon Type Selector */}
+      <div className="label" style={{ marginBottom: 8 }}>How do you operate?</div>
+      <div className="flex gap-3" style={{ marginBottom: 24 }}>
+        <button
+          onClick={() => setSalonType('solo')}
+          className="card flex-col"
+          style={{
+            flex: 1, marginBottom: 0, textAlign: 'center', cursor: 'pointer', padding: '20px 12px',
+            border: salonType === 'solo' ? '2px solid var(--primary)' : '1px solid var(--border)',
+            background: salonType === 'solo' ? 'var(--tag-critical-bg)' : 'var(--surface)',
+          }}>
+          <User size={28} color={salonType === 'solo' ? 'var(--primary)' : 'var(--ink-muted)'} style={{ margin: '0 auto 8px' }} />
+          <div className="h3" style={{ fontSize: 14, color: salonType === 'solo' ? 'var(--primary)' : 'var(--ink)' }}>Single Owner</div>
+          <div className="caption" style={{ marginTop: 4, fontSize: 11 }}>I run the salon alone</div>
+        </button>
+        <button
+          onClick={() => setSalonType('team')}
+          className="card flex-col"
+          style={{
+            flex: 1, marginBottom: 0, textAlign: 'center', cursor: 'pointer', padding: '20px 12px',
+            border: salonType === 'team' ? '2px solid var(--primary)' : '1px solid var(--border)',
+            background: salonType === 'team' ? 'var(--tag-critical-bg)' : 'var(--surface)',
+          }}>
+          <CalendarDays size={28} color={salonType === 'team' ? 'var(--primary)' : 'var(--ink-muted)'} style={{ margin: '0 auto 8px' }} />
+          <div className="h3" style={{ fontSize: 14, color: salonType === 'team' ? 'var(--primary)' : 'var(--ink)' }}>Owner + Staff</div>
+          <div className="caption" style={{ marginTop: 4, fontSize: 11 }}>I have staff members</div>
+        </button>
+      </div>
+
       <div className="flex-col gap-4">
         <div>
           <div className="label">Salon Name</div>
@@ -845,16 +964,6 @@ function ListSalonScreen() {
         </div>
 
         <div>
-          <div className="label">Salon Images (Optional)</div>
-          <div style={{
-            border: '1px dashed var(--border)', borderRadius: 'var(--r-md)',
-            padding: 24, textAlign: 'center', marginTop: 4, background: 'var(--surface)'
-          }}>
-            <span className="caption">Tap to upload images</span>
-          </div>
-        </div>
-
-        <div>
           <div className="label">Your Services</div>
           <textarea placeholder="e.g. Haircut - ₹150, Shave - ₹100" className="input-field mt-1" style={{ minHeight: 80, resize: 'none' }} />
           <div className="caption mt-2 text-center" style={{ color: 'var(--ink-muted)' }}>
@@ -864,7 +973,13 @@ function ListSalonScreen() {
       </div>
 
       <div style={{ marginTop: 'auto', paddingTop: 32, paddingBottom: 24 }}>
-        <button className="btn-primary" onClick={() => navigate('/user')}>Done</button>
+        <button
+          className="btn-primary"
+          disabled={!salonType}
+          onClick={() => navigate(salonType === 'solo' ? '/owner/solo/dashboard' : '/owner/team/dashboard')}
+        >
+          {salonType ? `Continue as ${salonType === 'solo' ? 'Single Owner' : 'Owner + Staff'}` : 'Select how you operate'}
+        </button>
       </div>
     </motion.div>
   );
