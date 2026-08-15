@@ -59,11 +59,11 @@ function AdminBottomNav() {
 }
 
 /* ─── Shared layout wrapper ─── */
-function AdminLayout({ children, title, showBack = false }: { children: React.ReactNode; title: string, showBack?: boolean }) {
+function AdminLayout({ children, title, backTo, backLabel }: { children: React.ReactNode; title: string; backTo?: string; backLabel?: string }) {
   return (
     <div className="page-container" style={{ maxWidth: 800, paddingBottom: 100 }}>
-      <div className="flex items-center" style={{ marginTop: 16, marginBottom: 8, height: 32 }}>
-        {showBack && <BackButton />}
+      <div style={{ marginTop: 8, marginBottom: 8 }}>
+        <BackButton to={backTo} label={backLabel || 'Back'} />
       </div>
       <div className="ios-header" style={{ marginBottom: 20 }}>
         <div className="ios-header-date">Admin Portal</div>
@@ -110,7 +110,7 @@ function AdminLogin() {
 /* ─── Screen 2: Analytics ─── */
 function AdminAnalytics() {
   return (
-    <AdminLayout title="Analytics">
+    <AdminLayout title="Analytics" backTo="/">
       <div className="flex gap-3" style={{ marginBottom: 20 }}>
         <div className="card flex-col" style={{ flex: 1, marginBottom: 0, textAlign: 'center' }}>
           <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 34, fontWeight: 700, color: 'var(--ink)' }}>1.2k</div>
@@ -142,7 +142,7 @@ function AdminSubscriptions() {
   const trial = MOCK_SALONS.filter(s => s.status === 'trial');
 
   return (
-    <AdminLayout title="Subscriptions">
+    <AdminLayout title="Subscriptions" backTo="/admin/analytics">
       <div className="card" style={{ background: 'var(--primary)', color: '#fff', border: 'none' }}>
         <div className="caption" style={{ color: 'rgba(255,255,255,0.8)' }}>Total Projected Revenue</div>
         <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 36, fontWeight: 700, marginTop: 4 }}>₹{(MOCK_SALONS.length * 500).toLocaleString()}</div>
@@ -199,7 +199,7 @@ function AdminSubscriptions() {
 function AdminSalons() {
   const navigate = useNavigate();
   return (
-    <AdminLayout title="Saloons">
+    <AdminLayout title="Saloons" backTo="/admin/analytics">
       <div className="flex-col" style={{ gap: 12, marginBottom: 32 }}>
         {MOCK_SALONS.map(salon => (
           <div key={salon.id} className="card interactive flex justify-between items-center"
@@ -216,6 +216,40 @@ function AdminSalons() {
             </div>
           </div>
         ))}
+      </div>
+    </AdminLayout>
+  );
+}
+
+/* ─── Screen 4.5: Salon Detail ─── */
+function AdminSalonDetail() {
+  const location = useLocation();
+  const salonId = location.pathname.split('/').pop();
+  const salon = MOCK_SALONS.find(s => s.id === salonId) || MOCK_SALONS[0];
+
+  return (
+    <AdminLayout title={salon.name} backTo="/admin/salons" backLabel="Saloons">
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="flex justify-between items-start" style={{ marginBottom: 12 }}>
+          <div>
+            <div className="h3">{salon.name}</div>
+            <div className="caption" style={{ marginTop: 4 }}>{salon.address}</div>
+          </div>
+          <SubTag status={salon.status} />
+        </div>
+        <div className="caption" style={{ marginTop: 8 }}>
+          Subscription Valid Till: <strong>{new Date(salon.subscriptionEnd).toLocaleDateString('en-IN')}</strong>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="h3" style={{ marginBottom: 12 }}>Admin Actions</div>
+        <div className="flex-col" style={{ gap: 10 }}>
+          <button className="btn-secondary" style={{ width: '100%' }}>Renew Subscription (₹500)</button>
+          <button className="btn-secondary" style={{ width: '100%', color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)' }}>
+            Suspend Salon
+          </button>
+        </div>
       </div>
     </AdminLayout>
   );
@@ -241,7 +275,7 @@ function AdminUsers() {
   };
 
   return (
-    <AdminLayout title="Users">
+    <AdminLayout title="Users" backTo="/admin/analytics">
       <div style={{ marginBottom: 16 }}>
         <input type="search" placeholder="Search by name or phone…" className="input-field"
           value={search} onChange={e => setSearch(e.target.value)} />
@@ -279,7 +313,7 @@ function AdminUsers() {
 /* ─── Screen 6: Settings ─── */
 function AdminSettings() {
   return (
-    <AdminLayout title="Settings">
+    <AdminLayout title="Settings" backTo="/admin/analytics">
       <div className="card" style={{ padding: 24 }}>
         <div className="h3" style={{ marginBottom: 16 }}>Platform Controls</div>
         <div className="flex-col" style={{ gap: 12 }}>
@@ -304,6 +338,7 @@ export default function AdminFlow() {
         <Route path="/analytics"     element={<AdminAnalytics />} />
         <Route path="/subscriptions" element={<AdminSubscriptions />} />
         <Route path="/salons"        element={<AdminSalons />} />
+        <Route path="/salons/:id"    element={<AdminSalonDetail />} />
         <Route path="/users"         element={<AdminUsers />} />
         <Route path="/settings"      element={<AdminSettings />} />
         {/* Fallback to analytics if logged in */}
@@ -313,3 +348,4 @@ export default function AdminFlow() {
     </>
   );
 }
+
