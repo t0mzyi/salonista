@@ -99,30 +99,148 @@ function OwnerBottomNav({ mode, hasServices = true }: { mode: 'solo' | 'team'; h
    ═══════════════════════════════════════════ */
 
 function AnalyticsScreen({ mode }: { mode: 'solo' | 'team' }) {
-  const [dateFilter, setDateFilter] = useState('This Week');
-  
-  // Advanced Mock Metrics
-  const completedBookings = 42;
-  const cancellations = 4;
-  const noShows = 2;
-  const totalBookings = completedBookings + cancellations + noShows;
-  const cancelRate = Math.round((cancellations / totalBookings) * 100) || 0;
-  const noShowRate = Math.round((noShows / totalBookings) * 100) || 0;
-  const walkinRate = 35; // %
-  const repeatRate = 68; // %
+  const [dateFilter, setDateFilter] = useState<'Today' | 'This Week' | 'This Month' | 'All Time'>('This Week');
+  const [salon, setSalon] = useState<any>(null);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const userPhone = localStorage.getItem('salonista_user_phone');
+    fetch('http://localhost:5000/api/salons')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data)) {
+          const s = data.data.find((x: any) => x.owner_phone === userPhone) || data.data[0];
+          if (s) {
+            setSalon(s);
+            fetch(`http://localhost:5000/api/bookings?salonId=${s.id}`)
+              .then(r => r.json())
+              .then(bData => {
+                if (bData.success && Array.isArray(bData.data)) {
+                  setBookings(bData.data);
+                }
+              })
+              .catch(console.error)
+              .finally(() => setLoading(false));
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Filter dynamic bookings according to selected timeframe
+  const now = new Date();
+  const filteredBookings = bookings.filter(b => {
+    const bDate = new Date(b.start_time);
+    if (dateFilter === 'Today') {
+      return bDate.toDateString() === now.toDateString();
+    }
+    if (dateFilter === 'This Week') {
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return bDate >= oneWeekAgo && bDate <= now;
+    }
+    if (dateFilter === 'This Month') {
+      return bDate.getMonth() === now.getMonth() && bDate.getFullYear() === now.getFullYear();
+    }
+    return true; // All Time
+  });
+
+  // Dynamic Metrics Computation
+  const completedBookings = filteredBookings.filter(b => b.status === 'completed');
+  const cancelledBookings = filteredBookings.filter(b => b.status === 'cancelled' || b.status === 'no_show');
+  const activeBookings = filteredBookings.filter(b => b.status === 'booked' || b.status === 'in_progress');
+
+  const totalBookingsCount = filteredBookings.length;
+  const totalRevenue = completedBookings.reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
+
+  const appBookings = completedBookings.filter(b => b.is_app_booking);
+  const walkinBookings = completedBookings.filter(b => !b.is_app_booking);
+
+  const appRevenue = appBookings.reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
+  const walkinRevenue = walkinBookings.reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
+
+  const cancelRate = totalBookingsCount > 0 ? Math.round((cancelledBookings.length / totalBookingsCount) * 100) : 0;
+  const walkinRate = totalBookingsCount > 0 ? Math.round((filteredBookings.filter(b => !b.is_app_booking).length / totalBookingsCount) * 100) : 0;
+
+  // Unique customer count / repeat rate
+  const phoneCounts: Record<string, number> = {};
+  filteredBookings.forEach(b => {
+    if (b.customer_phone) {
+      phoneCounts[b.customer_phone] = (phoneCounts[b.customer_phone] || 0) + 1;
+    }
+  });
+  const totalUniquePhones = Object.keys(phoneCounts).length;
+  const repeatPhones = Object.values(phoneCounts).filter(c => c > 1).length;
+  const repeatRate = totalUniquePhones > 0 ? Math.round((repeatPhones / totalUniquePhones) * 100) : 0;
+
+  // Real Top Services breakdown
+  const serviceStatsMap: Record<string, { name: string; revenue: number; count: number }> = {};
+  completedBookings.forEach(b => {
+    const sIds: string[] = Array.isArray(b.service_ids) ? b.service_ids : [];
+    if (sIds.length === 0) {
+      const key = 'Custom Service';
+      if (!serviceStatsMap[key]) serviceStatsMap[key] = { name: key, revenue: 0, count: 0 };
+      serviceStatsMap[key].revenue += Number(b.total_price) || 0;
+      serviceStatsMap[key].count += 1;
+    } else {
+      const portion = (Number(b.total_price) || 0) / sIds.length;
+      sIds.forEach(id => {
+        const found = salon?.services?.find((s: any) => s.id === id);
+        const name = found ? found.name : 'General Grooming';
+        if (!serviceStatsMap[name]) serviceStatsMap[name] = { name, revenue: 0, count: 0 };
+        serviceStatsMap[name].revenue += portion;
+        serviceStatsMap[name].count += 1;
+      });
+    }
+  });
+
+  const topServices = Object.values(serviceStatsMap)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 4)
+    .map(s => ({
+      name: s.name,
+      revenue: Math.round(s.revenue),
+      pct: totalRevenue > 0 ? Math.round((s.revenue / totalRevenue) * 100) : 0
+    }));
+
+  // Real Peak Hours Distribution (9 AM to 9 PM in 2-hour buckets)
+  const hourBuckets = [
+    { label: '9-11 AM', count: 0 },
+    { label: '11-1 PM', count: 0 },
+    { label: '1-3 PM', count: 0 },
+    { label: '3-5 PM', count: 0 },
+    { label: '5-7 PM', count: 0 },
+    { label: '7-9 PM', count: 0 },
+  ];
+
+  filteredBookings.forEach(b => {
+    const h = new Date(b.start_time).getHours();
+    if (h >= 9 && h < 11) hourBuckets[0].count += 1;
+    else if (h >= 11 && h < 13) hourBuckets[1].count += 1;
+    else if (h >= 13 && h < 15) hourBuckets[2].count += 1;
+    else if (h >= 15 && h < 17) hourBuckets[3].count += 1;
+    else if (h >= 17 && h < 19) hourBuckets[4].count += 1;
+    else if (h >= 19 && h < 21) hourBuckets[5].count += 1;
+  });
+
+  const maxHourCount = Math.max(...hourBuckets.map(x => x.count), 1);
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       className="page-container" style={{ maxWidth: 800, paddingBottom: 100 }}>
 
       <div className="ios-header" style={{ marginTop: 24, marginBottom: 16 }}>
-        <div className="ios-header-date">{mode === 'solo' ? 'Single Owner' : 'Owner + Staff'}</div>
+        <div className="ios-header-date">{salon?.name || (mode === 'solo' ? 'Single Owner' : 'Owner + Staff')}</div>
         <div className="ios-header-title">Analytics</div>
       </div>
 
       {/* Date Filter */}
       <div className="scroll-x flex gap-2" style={{ marginBottom: 20 }}>
-        {['Today', 'This Week', 'This Month', 'This Year'].map(lbl => (
+        {(['Today', 'This Week', 'This Month', 'All Time'] as const).map(lbl => (
           <button key={lbl} 
             className={`chip ${dateFilter === lbl ? 'active' : ''}`}
             onClick={() => setDateFilter(lbl)}
@@ -136,106 +254,120 @@ function AnalyticsScreen({ mode }: { mode: 'solo' | 'team' }) {
         ))}
       </div>
 
-      {/* Revenue card */}
-      <div className="card" style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '24px', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginBottom: 8 }}>Total Revenue ({dateFilter})</div>
-        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.02em' }}>
-          ₹{dateFilter === 'Today' ? '4,500' : dateFilter === 'This Week' ? '28,400' : '1,12,000'}
+      {loading ? (
+        <div className="card text-center" style={{ padding: '36px 20px' }}>
+          <div className="caption">Loading analytics from real bookings...</div>
         </div>
-        <div className="flex gap-4" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-          <div>
-            <div style={{ fontSize: 11, opacity: 0.8 }}>App Bookings</div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>₹18,000</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, opacity: 0.8 }}>Walk-ins</div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>₹10,400</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mini Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
-        <div className="card" style={{ marginBottom: 0, padding: 16 }}>
-          <div className="caption" style={{ marginBottom: 4 }}>Cancellation Rate</div>
-          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: cancelRate > 15 ? 'var(--tag-critical-ink)' : 'var(--ink)' }}>{cancelRate}%</div>
-          <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>{cancellations} bookings</div>
-        </div>
-        <div className="card" style={{ marginBottom: 0, padding: 16 }}>
-          <div className="caption" style={{ marginBottom: 4 }}>No-show Rate</div>
-          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: noShowRate > 5 ? 'var(--tag-critical-ink)' : 'var(--ink)' }}>{noShowRate}%</div>
-          <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>{noShows} bookings</div>
-        </div>
-        <div className="card" style={{ marginBottom: 0, padding: 16 }}>
-          <div className="caption" style={{ marginBottom: 4 }}>Repeat Customers</div>
-          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--tag-ok-ink)' }}>{repeatRate}%</div>
-          <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>High retention</div>
-        </div>
-        <div className="card" style={{ marginBottom: 0, padding: 16 }}>
-          <div className="caption" style={{ marginBottom: 4 }}>Walk-in vs App</div>
-          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>{walkinRate}%</div>
-          <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>Are Walk-ins</div>
-        </div>
-      </div>
-
-      {/* Top Services & Peak Hours */}
-      <div className="h3" style={{ marginBottom: 12 }}>Performance Insights</div>
-      <div className="flex-col" style={{ gap: 12, marginBottom: 24 }}>
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="h3" style={{ fontSize: 15, marginBottom: 12 }}>Top Services (Revenue)</div>
-          <div className="flex-col" style={{ gap: 12 }}>
-            {[
-              { name: 'Haircut + Beard Combo', rev: '₹12,000', pct: 42 },
-              { name: 'Premium Fade', rev: '₹8,400', pct: 30 },
-              { name: 'Keratin Treatment', rev: '₹4,000', pct: 14 }
-            ].map((s, i) => (
-              <div key={i}>
-                <div className="flex justify-between" style={{ fontSize: 13, marginBottom: 4 }}>
-                  <span style={{ fontWeight: 500 }}>{s.name}</span>
-                  <span style={{ fontWeight: 600 }}>{s.rev}</span>
-                </div>
-                <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${s.pct}%`, background: 'var(--primary)', borderRadius: 3 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="h3" style={{ fontSize: 15, marginBottom: 12 }}>Peak Hours</div>
-          <div className="flex items-end justify-between" style={{ height: 100, paddingTop: 20, borderBottom: '1px solid var(--border)', paddingBottom: 4 }}>
-            {[2, 4, 3, 8, 10, 9, 5, 2].map((h, i) => (
-              <div key={i} style={{ width: '10%', background: 'var(--primary)', height: `${h * 10}%`, borderRadius: '4px 4px 0 0', opacity: h > 7 ? 1 : 0.4 }} />
-            ))}
-          </div>
-          <div className="flex justify-between" style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 8 }}>
-            <span>9 AM</span>
-            <span>1 PM</span>
-            <span>5 PM</span>
-            <span>9 PM</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Staff Performance (Team Mode Only) */}
-      {mode === 'team' && (
+      ) : (
         <>
-          <div className="h3" style={{ marginBottom: 12 }}>Staff Performance</div>
-          <div className="card" style={{ marginBottom: 0, padding: 0, overflow: 'hidden' }}>
-            {[
-              { name: 'Arun K.', rev: '₹14,200', jobs: 28 },
-              { name: 'Vishnu P.', rev: '₹9,800', jobs: 19 },
-              { name: 'Sajith (Trainee)', rev: '₹4,400', jobs: 12 }
-            ].map((staff, i) => (
-              <div key={i} className="flex justify-between items-center" style={{ padding: '14px 16px', borderBottom: i === 2 ? 'none' : '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{staff.name}</div>
-                  <div className="caption">{staff.jobs} services</div>
-                </div>
-                <div style={{ fontWeight: 700, color: 'var(--primary)' }}>{staff.rev}</div>
+          {/* Revenue card */}
+          <div className="card" style={{ background: 'var(--primary)', color: '#fff', border: 'none', padding: '24px', position: 'relative', overflow: 'hidden', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginBottom: 8 }}>Total Revenue ({dateFilter})</div>
+            <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 38, fontWeight: 700, lineHeight: 1, letterSpacing: '-0.02em' }}>
+              ₹{totalRevenue.toLocaleString('en-IN')}
+            </div>
+            <div className="flex gap-6" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>App Bookings</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>₹{appRevenue.toLocaleString('en-IN')}</div>
               </div>
-            ))}
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Walk-ins</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>₹{walkinRevenue.toLocaleString('en-IN')}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.8 }}>Completed</div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>{completedBookings.length}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mini Stats Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+            <div className="card" style={{ marginBottom: 0, padding: 16 }}>
+              <div className="caption" style={{ marginBottom: 4 }}>Total Appointments</div>
+              <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 24, fontWeight: 700, color: 'var(--ink)' }}>
+                {totalBookingsCount}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>
+                {activeBookings.length} active / upcoming
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 0, padding: 16 }}>
+              <div className="caption" style={{ marginBottom: 4 }}>Walk-in vs App</div>
+              <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 24, fontWeight: 700, color: 'var(--ink)' }}>
+                {walkinRate}%
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>
+                {filteredBookings.filter(b => !b.is_app_booking).length} walk-ins
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 0, padding: 16 }}>
+              <div className="caption" style={{ marginBottom: 4 }}>Cancellation Rate</div>
+              <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 24, fontWeight: 700, color: cancelRate > 15 ? 'var(--tag-critical-ink)' : 'var(--ink)' }}>
+                {cancelRate}%
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>
+                {cancelledBookings.length} cancelled
+              </div>
+            </div>
+
+            <div className="card" style={{ marginBottom: 0, padding: 16 }}>
+              <div className="caption" style={{ marginBottom: 4 }}>Repeat Customers</div>
+              <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 24, fontWeight: 700, color: 'var(--tag-ok-ink)' }}>
+                {repeatRate}%
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-muted)', marginTop: 4 }}>
+                {repeatPhones} recurring clients
+              </div>
+            </div>
+          </div>
+
+          {/* Top Services & Peak Hours */}
+          <div className="h3" style={{ marginBottom: 12 }}>Performance Insights</div>
+          <div className="flex-col" style={{ gap: 12, marginBottom: 24 }}>
+            <div className="card" style={{ marginBottom: 0 }}>
+              <div className="h3" style={{ fontSize: 15, marginBottom: 12 }}>Top Services (Revenue)</div>
+              {topServices.length === 0 ? (
+                <div className="caption" style={{ padding: '8px 0' }}>No completed services in this timeframe yet.</div>
+              ) : (
+                <div className="flex-col" style={{ gap: 12 }}>
+                  {topServices.map((s, i) => (
+                    <div key={i}>
+                      <div className="flex justify-between" style={{ fontSize: 13, marginBottom: 4 }}>
+                        <span style={{ fontWeight: 500 }}>{s.name}</span>
+                        <span style={{ fontWeight: 600 }}>₹{s.revenue.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div style={{ height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${s.pct}%`, background: 'var(--primary)', borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="card" style={{ marginBottom: 0 }}>
+              <div className="h3" style={{ fontSize: 15, marginBottom: 12 }}>Peak Hours Activity</div>
+              <div className="flex items-end justify-between" style={{ height: 100, paddingTop: 20, borderBottom: '1px solid var(--border)', paddingBottom: 4 }}>
+                {hourBuckets.map((h, i) => {
+                  const pct = Math.max((h.count / maxHourCount) * 100, h.count > 0 ? 15 : 6);
+                  return (
+                    <div key={i} style={{ width: '13%', display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary)', marginBottom: 2 }}>{h.count > 0 ? h.count : ''}</span>
+                      <div style={{ width: '100%', background: 'var(--primary)', height: `${pct}%`, borderRadius: '4px 4px 0 0', opacity: h.count > 0 ? 1 : 0.2 }} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between" style={{ fontSize: 10, color: 'var(--ink-muted)', marginTop: 8 }}>
+                {hourBuckets.map((h, i) => (
+                  <span key={i} style={{ width: '14%', textAlign: 'center' }}>{h.label.split(' ')[0]}</span>
+                ))}
+              </div>
+            </div>
           </div>
         </>
       )}
