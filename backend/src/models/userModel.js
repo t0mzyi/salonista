@@ -15,14 +15,28 @@ export const upsertUser = async (phone, name) => {
 };
 
 /**
- * Find user by phone number
+ * Get all users ordered by creation date
  */
-export const getUserByPhone = async (phone) => {
+export const getAllUsers = async () => {
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .eq('phone', phone)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Update user block status
+ */
+export const updateUserBlockStatus = async (id, isBlocked) => {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ is_blocked: isBlocked, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
 
   if (error) throw error;
   return data;

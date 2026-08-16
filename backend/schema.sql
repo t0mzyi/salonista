@@ -17,7 +17,10 @@ CREATE TABLE salons (
   description TEXT,
   photos JSONB DEFAULT '[]'::jsonb,
   services JSONB DEFAULT '[]'::jsonb,
-  schedule JSONB DEFAULT '{"openDays":["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],"openTime":"09:00","closeTime":"21:00"}'::jsonb,
+  schedule JSONB DEFAULT '{"openDays":["Mon","Wed","Thu","Fri","Sat","Sun"],"openTime":"09:00","closeTime":"21:00"}'::jsonb,
+  slug TEXT UNIQUE,
+  subscription_status TEXT DEFAULT 'trial', -- 'trial', 'active', 'suspended'
+  trial_ends_at TIMESTAMP WITH TIME ZONE DEFAULT (timezone('utc'::text, now()) + interval '7 days'),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -41,10 +44,13 @@ CREATE POLICY "Allow public delete access" ON salons
 
 
 -- 2. USERS TABLE
-CREATE TABLE IF NOT EXISTS users (
+DROP TABLE IF EXISTS users CASCADE;
+
+CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone TEXT UNIQUE NOT NULL,
   name TEXT,
+  is_blocked BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -65,7 +71,9 @@ CREATE POLICY "Allow public update on users" ON users
 
 
 -- 3. BOOKINGS TABLE
-CREATE TABLE IF NOT EXISTS bookings (
+DROP TABLE IF EXISTS bookings CASCADE;
+
+CREATE TABLE bookings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   salon_id UUID REFERENCES salons(id) ON DELETE CASCADE,
   customer_name TEXT NOT NULL,

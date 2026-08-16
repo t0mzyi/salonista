@@ -22,3 +22,23 @@ export const getProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getUsers = async (req, res, next) => {
+  try {
+    const users = await userService.fetchAllUsers();
+    res.status(200).json({ success: true, data: users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateUserBlock = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { is_blocked } = req.body;
+    const user = await userService.toggleUserBlock(id, is_blocked);
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    next(error);
+  }
+};

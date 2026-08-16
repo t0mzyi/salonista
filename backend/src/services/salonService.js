@@ -76,6 +76,9 @@ export const salonService = {
   },
 
   async createSalon(data) {
+    if (!data.owner_phone) {
+      throw new Error("Authentication required: Please verify your phone number to register a salon.");
+    }
     if (!data.name || !data.location) {
       throw new Error("Salon name and location are required");
     }
@@ -86,6 +89,41 @@ export const salonService = {
       if (resolved && resolved.expandedUrl) {
         data.map_url = resolved.expandedUrl;
       }
+    }
+
+    // Generate unique URL slug from salon name
+    const baseSlug = (data.name || 'salon')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'salon';
+
+    let uniqueSlug = baseSlug;
+    let counter = 1;
+    while (true) {
+      const existing = await salonModel.getSalonBySlug(uniqueSlug);
+      if (!existing) break;
+      counter++;
+      uniqueSlug = `${baseSlug}-${counter}`;
+    }
+    data.slug = uniqueSlug;
+
+    // Set default schedule (Tuesdays closed by default in Kerala barber tradition)
+    if (!data.schedule) {
+      data.schedule = {
+        openDays: ['Mon', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        openTime: '09:00',
+        closeTime: '21:00'
+      };
+    }
+
+    // Set 7-day trial period by default
+    if (!data.subscription_status) {
+      data.subscription_status = 'trial';
+    }
+    if (!data.trial_ends_at) {
+      const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      data.trial_ends_at = sevenDaysLater.toISOString();
     }
 
     // Validate services payload if provided
@@ -140,6 +178,11 @@ export const salonService = {
     }
 
     return await salonModel.updateSalon(id, updateData);
+  },
+
+  async deleteSalon(id) {
+    if (!id) throw new Error('Salon ID is required');
+    return await salonModel.deleteSalon(id);
   }
 };
 

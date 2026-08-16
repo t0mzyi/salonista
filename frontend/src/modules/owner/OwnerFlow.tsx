@@ -20,6 +20,176 @@ const fadeUpItem = {
 };
 
 /* ═══════════════════════════════════════════
+   PRINTABLE COUNTER STAND GENERATOR
+   ═══════════════════════════════════════════ */
+
+async function downloadCounterPoster(salon: any, showToast?: (msg: string) => void) {
+  if (!salon) return;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&color=20-10-0&data=${encodeURIComponent(`${window.location.origin}/salon/${salon.slug || salon.id}`)}`;
+
+  try {
+    const canvas = document.createElement('canvas');
+    const width = 800;
+    const height = 1120;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Load QR Image
+    const qrImg = new Image();
+    qrImg.crossOrigin = 'anonymous';
+    await new Promise((resolve, reject) => {
+      qrImg.onload = resolve;
+      qrImg.onerror = reject;
+      qrImg.src = qrUrl;
+    });
+
+    // Background (Clean Warm White Stand)
+    ctx.fillStyle = '#FAFAF9';
+    ctx.fillRect(0, 0, width, height);
+
+    // Decorative top gradient banner
+    const grad = ctx.createLinearGradient(0, 0, width, 240);
+    grad.addColorStop(0, '#E8630B');
+    grad.addColorStop(1, '#FF7A29');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, 180);
+
+    // Inner White Card with soft shadow & rounded corners
+    ctx.fillStyle = '#FFFFFF';
+    ctx.strokeStyle = 'rgba(232, 99, 11, 0.2)';
+    ctx.lineWidth = 4;
+    
+    // Draw rounded rect for poster card
+    const cardX = 40;
+    const cardY = 70;
+    const cardW = width - 80;
+    const cardH = height - 120;
+    const radius = 32;
+
+    ctx.beginPath();
+    ctx.moveTo(cardX + radius, cardY);
+    ctx.lineTo(cardX + cardW - radius, cardY);
+    ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+    ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+    ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+    ctx.lineTo(cardX + radius, cardY + cardH);
+    ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+    ctx.lineTo(cardX, cardY + radius);
+    ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Top Pill: "✂️ QUICK CHAIR BOOKING"
+    const pillW = 320;
+    const pillH = 46;
+    const pillX = (width - pillW) / 2;
+    const pillY = 120;
+    ctx.fillStyle = '#FFF5EE';
+    ctx.strokeStyle = '#E8630B';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(pillX, pillY, pillW, pillH, 23);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#E8630B';
+    ctx.font = 'bold 18px Poppins, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✂️ Quick Chair Booking', width / 2, pillY + pillH / 2);
+
+    // Salon Name
+    ctx.fillStyle = '#140A00';
+    ctx.font = 'bold 36px Poppins, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const salonName = (salon.name || 'Our Salon').toUpperCase();
+    ctx.fillText(salonName, width / 2, 200);
+
+    // Subtitle Call to action
+    ctx.fillStyle = '#5A4A42';
+    ctx.font = '500 20px Poppins, sans-serif';
+    ctx.fillText('To book your service, please scan and reserve your slot', width / 2, 260);
+
+    // QR Code Frame Container
+    const qrFrameSize = 480;
+    const qrFrameX = (width - qrFrameSize) / 2;
+    const qrFrameY = 320;
+    
+    ctx.fillStyle = '#FFFBF5';
+    ctx.strokeStyle = 'rgba(232, 99, 11, 0.3)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(qrFrameX, qrFrameY, qrFrameSize, qrFrameSize, 28);
+    ctx.fill();
+    ctx.stroke();
+
+    // Draw QR image centered
+    const qrDrawSize = 400;
+    const qrDrawX = (width - qrDrawSize) / 2;
+    const qrDrawY = qrFrameY + (qrFrameSize - qrDrawSize) / 2;
+    ctx.drawImage(qrImg, qrDrawX, qrDrawY, qrDrawSize, qrDrawSize);
+
+    // Instructions below QR
+    ctx.fillStyle = '#5A4A42';
+    ctx.font = '600 19px Poppins, sans-serif';
+    ctx.fillText('📸 Point camera to view prices, services & stylists', width / 2, 840);
+
+    // Divider Line
+    ctx.strokeStyle = '#E8DDD0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(140, 890);
+    ctx.lineTo(width - 140, 890);
+    ctx.stroke();
+
+    // Footer: Powered by Salonista (Accurately measured sequential draw)
+    const fontPrefix = '500 18px Poppins, sans-serif';
+    const fontBrand = 'bold 24px Poppins, sans-serif';
+
+    ctx.font = fontPrefix;
+    const prefixWidth = ctx.measureText('Powered by ').width;
+
+    ctx.font = fontBrand;
+    const brandWidth = ctx.measureText('Salonista').width;
+
+    const totalFooterWidth = prefixWidth + brandWidth;
+    const startX = (width - totalFooterWidth) / 2;
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    // Draw "Powered by "
+    ctx.fillStyle = '#8C7A70';
+    ctx.font = fontPrefix;
+    ctx.fillText('Powered by ', startX, 950);
+
+    // Draw "Salonista"
+    ctx.fillStyle = '#E8630B';
+    ctx.font = fontBrand;
+    ctx.fillText('Salonista', startX + prefixWidth, 950);
+
+    // Trigger Download
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `${(salon.slug || salon.name || 'salon').replace(/\s+/g, '_')}_Stand_Poster.png`;
+    link.href = dataUrl;
+    link.click();
+
+    if (showToast) {
+      showToast('Counter Stand Poster downloaded successfully!');
+    }
+  } catch (err) {
+    console.error('Failed to generate counter stand poster:', err);
+    // Fallback: download raw QR image
+    window.open(qrUrl, '_blank');
+  }
+}
+
+/* ═══════════════════════════════════════════
    SHARED COMPONENTS
    ═══════════════════════════════════════════ */
 
@@ -376,7 +546,7 @@ function AnalyticsScreen({ mode }: { mode: 'solo' | 'team' }) {
   );
 }
 
-function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
+function ServicesScreen({ mode, onServicesUpdate }: { mode: 'solo' | 'team'; onServicesUpdate?: (services: any[]) => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
@@ -384,7 +554,7 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal states
+  // Service Modal states
   const [showModal, setShowModal] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [nameInput, setNameInput] = useState('');
@@ -393,16 +563,86 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
   const [emojiInput, setEmojiInput] = useState('✂️');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Onboarding 3-step modal states
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null); // 1: Schedule, 2: Trial & Billing, null: closed
+  const [obOpenDays, setObOpenDays] = useState<string[]>(['Mon', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+  const [obOpenTime, setObOpenTime] = useState('09:00');
+  const [obCloseTime, setObCloseTime] = useState('21:00');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const allWeekDays = [
+    { id: 'Sun', name: 'Sunday', short: 'S' },
+    { id: 'Mon', name: 'Monday', short: 'M' },
+    { id: 'Tue', name: 'Tuesday', short: 'T' },
+    { id: 'Wed', name: 'Wednesday', short: 'W' },
+    { id: 'Thu', name: 'Thursday', short: 'T' },
+    { id: 'Fri', name: 'Friday', short: 'F' },
+    { id: 'Sat', name: 'Saturday', short: 'S' },
+  ];
+
+  const toggleObDay = (dayId: string) => {
+    if (obOpenDays.includes(dayId)) {
+      if (obOpenDays.length === 1) {
+        showError('Select at least 1 operating day.');
+        return;
+      }
+      setObOpenDays(obOpenDays.filter(d => d !== dayId));
+    } else {
+      setObOpenDays([...obOpenDays, dayId]);
+    }
+  };
+
+  const handleSaveOnboardingSchedule = async () => {
+    if (!salon?.id) return;
+    setIsSavingSchedule(true);
+    try {
+      const scheduleData = {
+        openDays: obOpenDays,
+        openTime: obOpenTime,
+        closeTime: obCloseTime
+      };
+      const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule: scheduleData })
+      });
+      const d = await res.json();
+      if (d.success) {
+        const updatedSalon = { ...salon, schedule: scheduleData };
+        setSalon(updatedSalon);
+        localStorage.setItem('salonista_owner_salon', JSON.stringify(updatedSalon));
+        setOnboardingStep(2); // Advance to Step 2: 7-Day Trial & Billing breakdown
+      } else {
+        showError(d.error || 'Failed to save schedule');
+      }
+    } catch (e) {
+      console.error(e);
+      showError('Failed to save schedule');
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  // Calculate dynamic pro-rata values for trial end
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const trialEndDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  
+  // Calculate remaining days in the month after 7-day trial ends
+  const trialEndDay = trialEndDate.getDate();
+  const remainingDaysAfterTrial = Math.max(0, daysInCurrentMonth - trialEndDay);
+  const dailyRate = 500 / daysInCurrentMonth;
+  const proRataAmount = Math.round(remainingDaysAfterTrial * dailyRate);
+  const monthName = now.toLocaleString('en-IN', { month: 'long' });
+  const nextMonthName = new Date(currentYear, currentMonth + 1, 1).toLocaleString('en-IN', { month: 'long' });
+
   // Load active salon's real services and auto-open modal if requested or empty
   useEffect(() => {
     const userPhone = localStorage.getItem('salonista_user_phone');
     const searchParams = new URLSearchParams(location.search);
     const shouldOpenAdd = searchParams.get('openAdd') === 'true';
-
-    // Once we detect openAdd, strip it from the URL immediately so future page refreshes won't re-trigger it
-    if (shouldOpenAdd) {
-      navigate(location.pathname, { replace: true });
-    }
 
     fetch('http://localhost:5000/api/salons')
       .then(res => res.json())
@@ -413,6 +653,12 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
             setSalon(s);
             const list = Array.isArray(s.services) ? s.services : [];
             setServices(list);
+            if (s.schedule) {
+              if (Array.isArray(s.schedule.openDays)) setObOpenDays(s.schedule.openDays);
+              if (s.schedule.openTime) setObOpenTime(s.schedule.openTime);
+              if (s.schedule.closeTime) setObCloseTime(s.schedule.closeTime);
+            }
+            if (onServicesUpdate) onServicesUpdate(list);
             if (shouldOpenAdd || list.length === 0) {
               setShowModal(true);
             }
@@ -442,12 +688,32 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
     setShowModal(true);
   };
 
+  const triggerShake = () => {
+    setIsShaking(false);
+    requestAnimationFrame(() => {
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 900);
+    });
+  };
+
   const handleSaveService = async () => {
-    if (!nameInput.trim()) { showError('Service name is required'); return; }
+    if (!nameInput.trim()) {
+      if (services.length === 0) triggerShake();
+      showError('Service name is required');
+      return;
+    }
     const priceNum = parseFloat(priceInput);
-    if (isNaN(priceNum) || priceNum <= 0) { showError('Please enter a valid price'); return; }
+    if (isNaN(priceNum) || priceNum <= 0) {
+      if (services.length === 0) triggerShake();
+      showError('Please enter a valid price');
+      return;
+    }
     const durNum = parseInt(durationInput, 10);
-    if (isNaN(durNum) || durNum <= 0) { showError('Please enter a valid duration'); return; }
+    if (isNaN(durNum) || durNum <= 0) {
+      if (services.length === 0) triggerShake();
+      showError('Please enter a valid duration');
+      return;
+    }
 
     if (!salon?.id) { showError('No salon found'); return; }
 
@@ -481,10 +747,18 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
         setSalon(updatedSalon);
         localStorage.setItem('salonista_owner_salon', JSON.stringify(updatedSalon));
 
-        // Clean up ?openAdd=true from URL so page doesn't keep thinking modal should re-open
-        navigate(location.pathname, { replace: true });
+        if (onServicesUpdate) onServicesUpdate(updatedList);
+
         setShowModal(false);
-        showSuccess(editingIndex !== null ? 'Service updated!' : 'New service added!');
+        const isFirstService = services.length === 0 && editingIndex === null;
+
+        if (isFirstService) {
+          // Trigger the 3-step onboarding flow immediately
+          setOnboardingStep(1);
+        } else {
+          showSuccess(editingIndex !== null ? 'Service updated!' : 'New service added!');
+          navigate(mode === 'solo' ? '/owner/solo/services' : '/owner/team/services', { replace: true });
+        }
       } else {
         showError(d.error || 'Failed to save service');
       }
@@ -512,6 +786,7 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
         const updatedSalon = { ...salon, services: updatedList };
         setSalon(updatedSalon);
         localStorage.setItem('salonista_owner_salon', JSON.stringify(updatedSalon));
+        if (onServicesUpdate) onServicesUpdate(updatedList);
         showSuccess('Service deleted');
       } else {
         showError(d.error || 'Failed to delete service');
@@ -526,12 +801,7 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
 
   const handleCloseModal = () => {
     if (services.length === 0) {
-      setIsShaking(false);
-      // Trigger a clean re-shake by toggling in next tick
-      requestAnimationFrame(() => {
-        setIsShaking(true);
-        setTimeout(() => setIsShaking(false), 900);
-      });
+      triggerShake();
       return;
     }
     setShowModal(false);
@@ -770,14 +1040,404 @@ function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ─── ONBOARDING STEP 1: SET WEEKLY SCHEDULE & HOURS MODAL ─── */}
+      <AnimatePresence>
+        {onboardingStep === 1 && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(20,10,0,0.7)', zIndex: 130,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)'
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              style={{
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-lg)',
+                padding: '24px',
+                width: '100%',
+                maxWidth: 420,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid var(--border)'
+              }}
+            >
+              <div style={{ textAlign: 'center', marginBottom: 18 }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: '50%', background: 'var(--tag-critical-bg)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px'
+                }}>
+                  <Clock size={26} color="var(--primary)" />
+                </div>
+                <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>
+                  Step 1 of 2: Set Salon Schedule
+                </div>
+                <div className="caption" style={{ marginTop: 4 }}>
+                  Configure your working days and daily opening hours.
+                </div>
+              </div>
+
+              <div className="flex-col" style={{ gap: 16 }}>
+                {/* Operating Days Bubbles */}
+                <div>
+                  <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
+                    <div className="label" style={{ marginBottom: 0 }}>Operating Days</div>
+                    <span className="caption" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 11 }}>
+                      {obOpenDays.length === 7 ? 'Open Everyday' : `${obOpenDays.length} Days Open`}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center" style={{ gap: 6, marginTop: 6 }}>
+                    {allWeekDays.map(d => {
+                      const isSelected = obOpenDays.includes(d.id);
+                      return (
+                        <motion.button
+                          key={d.id}
+                          type="button"
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => toggleObDay(d.id)}
+                          style={{
+                            width: 38, height: 38, borderRadius: '50%',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700,
+                            background: isSelected ? 'var(--primary)' : '#f3f4f6',
+                            color: isSelected ? '#fff' : '#6b7280',
+                            border: isSelected ? '2px solid var(--primary)' : '1.5px solid #e5e7eb',
+                            boxShadow: isSelected ? '0 3px 10px rgba(217,90,43,0.3)' : 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <span>{d.short}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Opening & Closing Hours */}
+                <div>
+                  <div className="label" style={{ marginBottom: 4 }}>Operating Timings</div>
+                  <div className="flex gap-3 items-center">
+                    <div style={{ flex: 1 }}>
+                      <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Opens At</span>
+                      <input type="time" className="input-field" value={obOpenTime} onChange={e => setObOpenTime(e.target.value)} />
+                    </div>
+                    <span className="caption" style={{ marginTop: 14 }}>to</span>
+                    <div style={{ flex: 1 }}>
+                      <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Closes At</span>
+                      <input type="time" className="input-field" value={obCloseTime} onChange={e => setObCloseTime(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  className="btn-primary"
+                  disabled={isSavingSchedule}
+                  onClick={handleSaveOnboardingSchedule}
+                  style={{ marginTop: 8 }}
+                >
+                  {isSavingSchedule ? 'Saving Schedule...' : 'Save Schedule & Continue →'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── ONBOARDING STEP 2: 7-DAY TRIAL & PRO-RATA BILLING MODAL ─── */}
+      <AnimatePresence>
+        {onboardingStep === 2 && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(20,10,0,0.7)', zIndex: 130,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)'
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              style={{
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-lg)',
+                padding: '24px',
+                width: '100%',
+                maxWidth: 420,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid var(--border)'
+              }}
+            >
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <div style={{
+                  width: 56, height: 56, borderRadius: '50%', background: '#ecfdf5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px',
+                  border: '2px solid #34d399'
+                }}>
+                  <span style={{ fontSize: 26 }}>🎉</span>
+                </div>
+                <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 19, fontWeight: 700, color: 'var(--ink)' }}>
+                  7-Day Free Trial Activated!
+                </div>
+                <div className="caption" style={{ marginTop: 4, lineHeight: 1.4 }}>
+                  Your salon is now live on the marketplace. You can receive unlimited client bookings.
+                </div>
+              </div>
+
+              {/* Trial Period Card */}
+              <div className="card" style={{ background: '#f0fdf4', border: '1.5px solid #86efac', padding: '14px', marginBottom: 14 }}>
+                <div className="flex justify-between items-center" style={{ marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#166534' }}>Free Trial Period</span>
+                  <span className="tag tag-ok" style={{ fontSize: 10 }}>100% Free</span>
+                </div>
+                <div className="body" style={{ fontSize: 12, color: '#15803d' }}>
+                  Active from <strong>Today</strong> till <strong>{trialEndDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> (7 full days).
+                </div>
+              </div>
+
+              {/* Pro-Rata Billing Breakdown */}
+              <div className="card" style={{ padding: '14px', marginBottom: 18, background: 'var(--bg)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>
+                  Post-Trial Billing Summary
+                </div>
+                
+                <div className="flex-col" style={{ gap: 8, fontSize: 12 }}>
+                  <div className="flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                    <span className="caption">First invoice ({trialEndDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} – {daysInCurrentMonth} {monthName}):</span>
+                    <span style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                      {remainingDaysAfterTrial > 0 ? `₹${proRataAmount}` : '₹0 (End of month)'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
+                    <span className="caption">Standard recurring plan:</span>
+                    <span style={{ fontWeight: 700, color: 'var(--ink)' }}>₹500 / month</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="caption">Next standard renewal:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--ink-muted)' }}>1st of {nextMonthName}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                className="btn-primary"
+                onClick={() => setOnboardingStep(3)}
+              >
+                Next: View Salon QR Code →
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── ONBOARDING STEP 3: SALON QR CODE & COUNTER DISPLAY MODAL ─── */}
+      <AnimatePresence>
+        {onboardingStep === 3 && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(20,10,0,0.7)', zIndex: 130,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)'
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              style={{
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-lg)',
+                padding: '24px',
+                width: '100%',
+                maxWidth: 420,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid var(--border)',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>
+                  Step 3 of 3: Counter Walk-in QR
+                </div>
+                <div className="caption" style={{ marginTop: 2 }}>
+                  Ready to print and display on your salon desk.
+                </div>
+              </div>
+
+              {/* Counter Stand Graphic Card */}
+              {salon?.id && (
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: 20,
+                    padding: '24px 20px 20px',
+                    margin: '0 auto 16px',
+                    width: '100%',
+                    boxShadow: '0 12px 36px rgba(232,99,11,0.08), 0 4px 12px rgba(0,0,0,0.05)',
+                    border: '2px solid rgba(232,99,11,0.18)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Top Header Tag */}
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'var(--tag-critical-bg)',
+                    border: '1px solid rgba(232,99,11,0.25)',
+                    padding: '4px 14px', borderRadius: 'var(--r-pill)',
+                    marginBottom: 12
+                  }}>
+                    <span style={{ fontSize: 13 }}>✂️</span>
+                    <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>
+                      Quick Chair Booking
+                    </span>
+                  </div>
+
+                  {/* Salon Name Branding */}
+                  <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 20, fontWeight: 800, color: 'var(--ink)', letterSpacing: -0.3, textAlign: 'center' }}>
+                    {salon?.name}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', marginTop: 4, marginBottom: 14, textAlign: 'center', maxWidth: 260 }}>
+                    To book your service, please scan and reserve your slot
+                  </div>
+
+                  {/* QR Code Container with Brand Border Accent */}
+                  <div style={{
+                    padding: 12,
+                    background: 'linear-gradient(135deg, rgba(255,251,245,1) 0%, rgba(255,245,238,1) 100%)',
+                    borderRadius: 16,
+                    border: '1.5px solid rgba(232,99,11,0.2)',
+                    boxShadow: 'inset 0 2px 6px rgba(232,99,11,0.04)'
+                  }}>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&color=20-10-0&data=${encodeURIComponent(`${window.location.origin}/salon/${salon.slug || salon.id}`)}`}
+                      alt={`QR Code for ${salon?.name}`}
+                      style={{ width: 180, height: 180, borderRadius: 10, display: 'block' }}
+                    />
+                  </div>
+
+                  {/* Scan Helper & Salonista Watermark */}
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', marginTop: 12 }}>
+                    📸 Point camera to view prices & book
+                  </div>
+
+                  <div className="divider" style={{ width: '80%', margin: '12px auto 10px', opacity: 0.6 }} />
+
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-faint)' }}>Powered by</span>
+                    <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 800, color: 'var(--primary)' }}>
+                      Salonista
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2" style={{ marginBottom: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => downloadCounterPoster(salon, showSuccess)}
+                  className="btn-secondary"
+                  style={{ flex: 1, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px' }}
+                >
+                  📥 Download Printable Counter Poster
+                </button>
+              </div>
+
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setOnboardingStep(null);
+                  showSuccess('Welcome to your Salon Dashboard!');
+                  navigate(mode === 'solo' ? '/owner/solo/history' : '/owner/team/history', { replace: true });
+                }}
+              >
+                Done & Go to Dashboard →
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
 function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const [salon, setSalon] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Edit Schedule Modal state
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [openDays, setOpenDays] = useState<string[]>(['Mon', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+  const [openTime, setOpenTime] = useState('09:00');
+  const [closeTime, setCloseTime] = useState('21:00');
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const allWeekDays = [
+    { id: 'Sun', name: 'Sunday', short: 'S' },
+    { id: 'Mon', name: 'Monday', short: 'M' },
+    { id: 'Tue', name: 'Tuesday', short: 'T' },
+    { id: 'Wed', name: 'Wednesday', short: 'W' },
+    { id: 'Thu', name: 'Thursday', short: 'T' },
+    { id: 'Fri', name: 'Friday', short: 'F' },
+    { id: 'Sat', name: 'Saturday', short: 'S' },
+  ];
+
+  const toggleDay = (dayId: string) => {
+    if (openDays.includes(dayId)) {
+      if (openDays.length === 1) {
+        showError('Select at least 1 operating day.');
+        return;
+      }
+      setOpenDays(openDays.filter(d => d !== dayId));
+    } else {
+      setOpenDays([...openDays, dayId]);
+    }
+  };
+
+  const handleSaveScheduleModal = async () => {
+    if (!salon?.id) return;
+    setIsSavingSchedule(true);
+    try {
+      const scheduleData = { openDays, openTime, closeTime };
+      const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedule: scheduleData })
+      });
+      const d = await res.json();
+      if (d.success) {
+        const updated = { ...salon, schedule: scheduleData };
+        setSalon(updated);
+        localStorage.setItem('salonista_owner_salon', JSON.stringify(updated));
+        setShowScheduleModal(false);
+        showSuccess('Schedule updated successfully!');
+      } else {
+        showError(d.error || 'Failed to update schedule');
+      }
+    } catch (e) {
+      console.error(e);
+      showError('Failed to connect to server');
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
 
   // Load owner's salon dynamically strictly matching user's phone
   useEffect(() => {
@@ -789,6 +1449,11 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
           const matchingSalon = data.data.find((x: any) => x.owner_phone === userPhone);
           if (matchingSalon) {
             setSalon(matchingSalon);
+            if (matchingSalon.schedule) {
+              if (Array.isArray(matchingSalon.schedule.openDays)) setOpenDays(matchingSalon.schedule.openDays);
+              if (matchingSalon.schedule.openTime) setOpenTime(matchingSalon.schedule.openTime);
+              if (matchingSalon.schedule.closeTime) setCloseTime(matchingSalon.schedule.closeTime);
+            }
             localStorage.setItem('salonista_owner_salon_id', matchingSalon.id);
           }
         }
@@ -808,6 +1473,23 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
   }
 
   const coverPhoto = salon?.photos?.[0];
+
+  // Dynamic Trial and Subscription calculation for DetailsScreen
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const trialEnd = salon?.trial_ends_at
+    ? new Date(salon.trial_ends_at)
+    : new Date(new Date(salon?.created_at || now).getTime() + 7 * 24 * 60 * 60 * 1000);
+  const isTrial = !salon?.subscription_status || salon?.subscription_status === 'trial';
+  const isTrialExpired = now > trialEnd;
+  const daysLeftInTrial = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  
+  const trialEndDay = trialEnd.getDate();
+  const remainingDaysAfterTrial = Math.max(0, daysInCurrentMonth - trialEndDay);
+  const proRataAmount = Math.round(remainingDaysAfterTrial * (500 / daysInCurrentMonth));
+  const monthName = now.toLocaleString('en-IN', { month: 'short' });
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
@@ -877,12 +1559,12 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
         </div>
       </div>
 
-      {/* Working Hours & Weekly Schedule */}
+      {/* Working Hours & Weekly Schedule Card */}
       <div className="card" style={{ padding: 18 }}>
         <div className="flex justify-between items-center" style={{ marginBottom: 10 }}>
           <div className="h3">Weekly Schedule & Hours</div>
           <button
-            onClick={() => navigate(editPath)}
+            onClick={() => setShowScheduleModal(true)}
             style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
           >
             Edit
@@ -935,29 +1617,146 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
         </div>
       </div>
 
-      {/* Subscription */}
+      {/* Subscription & 7-Day Free Trial Details */}
       <div className="card" style={{ padding: 18 }}>
         <div className="flex justify-between items-center" style={{ marginBottom: 8 }}>
-          <div className="h3">Subscription</div>
-          <span className="tag tag-ok">Active</span>
+          <div className="h3">Subscription Plan</div>
+          <span className={isTrial ? (isTrialExpired ? 'tag tag-critical' : 'tag tag-warn') : 'tag tag-ok'}>
+            {isTrial ? (isTrialExpired ? 'Trial Expired' : '7-Day Free Trial') : 'Active Paid'}
+          </span>
         </div>
-        <div className="caption">Plan renews on 15 Sep 2026</div>
-        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 24, fontWeight: 700, color: 'var(--primary)', marginTop: 8 }}>₹500/month</div>
+
+        {isTrial ? (
+          <div>
+            <div className="caption" style={{ color: isTrialExpired ? 'var(--tag-critical-ink)' : 'var(--ink)' }}>
+              {isTrialExpired ? (
+                <strong>⚠️ Your 7-day free trial ended on {trialEnd.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}.</strong>
+              ) : (
+                <span>Free trial active till <strong>{trialEnd.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> ({daysLeftInTrial} days left).</span>
+              )}
+            </div>
+            
+            <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--bg)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)' }}>
+              <div className="flex justify-between items-center" style={{ fontSize: 12, marginBottom: 4 }}>
+                <span className="caption">First partial billing ({trialEnd.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} – {daysInCurrentMonth} {monthName}):</span>
+                <span style={{ fontWeight: 700, color: 'var(--primary)' }}>₹{proRataAmount}</span>
+              </div>
+              <div className="flex justify-between items-center" style={{ fontSize: 12 }}>
+                <span className="caption">Standard monthly fee:</span>
+                <span style={{ fontWeight: 600 }}>₹500 / month</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="caption">Standard monthly subscription active</div>
+            <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--primary)', marginTop: 6 }}>₹500 / month</div>
+          </div>
+        )}
       </div>
 
-      {/* QR Code */}
+      {/* QR Code Counter Stand */}
       <div className="card" style={{ padding: 18, textAlign: 'center' }}>
-        <div className="h3" style={{ marginBottom: 6 }}>Walk-in QR Code</div>
-        <div className="caption" style={{ marginBottom: 14 }}>Print this and place at your counter.</div>
-        <div style={{
-          width: 120, height: 120, margin: '0 auto',
-          background: 'var(--bg)', borderRadius: 'var(--r-sm)',
-          border: '2px dashed var(--border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span className="caption">QR Code</span>
+        <div className="h3" style={{ marginBottom: 4 }}>Walk-in Counter QR</div>
+        <div className="caption" style={{ marginBottom: 14 }}>Display this stand on your front counter for walk-in clients.</div>
+        
+        {salon?.id ? (
+          <div style={{
+            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+            background: '#ffffff', padding: '24px 20px 20px', borderRadius: 20,
+            border: '2px solid rgba(232,99,11,0.18)',
+            boxShadow: '0 12px 36px rgba(232,99,11,0.08), 0 4px 12px rgba(0,0,0,0.05)',
+            width: '100%', maxWidth: 350, margin: '0 auto',
+            position: 'relative', overflow: 'hidden'
+          }}>
+            {/* Top Header Tag */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'var(--tag-critical-bg)',
+              border: '1px solid rgba(232,99,11,0.25)',
+              padding: '4px 14px', borderRadius: 'var(--r-pill)',
+              marginBottom: 12
+            }}>
+              <span style={{ fontSize: 13 }}>✂️</span>
+              <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>
+                Quick Chair Booking
+              </span>
+            </div>
+
+            {/* Salon Name Branding */}
+            <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 20, fontWeight: 800, color: 'var(--ink)', letterSpacing: -0.3, textAlign: 'center' }}>
+              {salon?.name}
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-muted)', marginTop: 4, marginBottom: 14, textAlign: 'center', maxWidth: 260 }}>
+              To book your service, please scan and reserve your slot
+            </div>
+
+            {/* QR Code Container */}
+            <div style={{
+              padding: 12,
+              background: 'linear-gradient(135deg, rgba(255,251,245,1) 0%, rgba(255,245,238,1) 100%)',
+              borderRadius: 16,
+              border: '1.5px solid rgba(232,99,11,0.2)',
+              boxShadow: 'inset 0 2px 6px rgba(232,99,11,0.04)'
+            }}>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=20-10-0&data=${encodeURIComponent(`${window.location.origin}/salon/${salon.slug || salon.id}`)}`}
+                alt={`QR Code for ${salon?.name}`}
+                style={{ width: 170, height: 170, display: 'block', borderRadius: 8 }}
+              />
+            </div>
+
+            {/* Instructions */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-muted)', marginTop: 12 }}>
+              📸 Point camera to view prices & book
+            </div>
+
+            <div className="divider" style={{ width: '80%', margin: '12px auto 10px', opacity: 0.6 }} />
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-faint)' }}>Powered by</span>
+              <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 800, color: 'var(--primary)' }}>
+                Salonista
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            width: 130, height: 130, margin: '0 auto',
+            background: 'var(--bg)', borderRadius: 'var(--r-md)',
+            border: '2px dashed var(--primary)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+            padding: 10
+          }}>
+            <Store size={36} color="var(--primary)" />
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink)' }}>
+              Counter QR
+            </span>
+          </div>
+        )}
+
+        <div className="flex gap-2" style={{ marginTop: 16, justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={() => downloadCounterPoster(salon, showSuccess)}
+            className="btn-secondary"
+            style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px' }}
+          >
+            📥 Download Counter Stand Poster
+          </button>
+          {salon?.id && (
+            <button
+              className="btn-secondary"
+              style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px' }}
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/salon/${salon.slug || salon.id}`);
+                showSuccess('Salon booking link copied to clipboard!');
+              }}
+            >
+              🔗 Copy Link
+            </button>
+          )}
         </div>
-        <button className="btn-secondary" style={{ marginTop: 14, fontSize: 13 }}>Download QR</button>
       </div>
 
       {/* Account & Preview */}
@@ -995,6 +1794,109 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
           }}>Logout</button>
         </div>
       </div>
+
+      {/* ─── DEDICATED SCHEDULE EDIT MODAL ─── */}
+      <AnimatePresence>
+        {showScheduleModal && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(20,10,0,0.65)', zIndex: 120,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)'
+            }}
+            onClick={() => setShowScheduleModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-lg)',
+                padding: '24px',
+                width: '100%',
+                maxWidth: 420,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid var(--border)'
+              }}
+            >
+              <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>
+                  Edit Weekly Schedule
+                </div>
+                <button onClick={() => setShowScheduleModal(false)} style={{ padding: 6, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex' }}>
+                  <X size={15} color="var(--ink-muted)" />
+                </button>
+              </div>
+
+              <div className="flex-col" style={{ gap: 16 }}>
+                <div>
+                  <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
+                    <div className="label" style={{ marginBottom: 0 }}>Operating Days</div>
+                    <span className="caption" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 11 }}>
+                      {openDays.length === 7 ? 'Open Everyday' : `${openDays.length} Days Open`}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center" style={{ gap: 6, marginTop: 4 }}>
+                    {allWeekDays.map(d => {
+                      const isSelected = openDays.includes(d.id);
+                      return (
+                        <motion.button
+                          key={d.id}
+                          type="button"
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => toggleDay(d.id)}
+                          style={{
+                            width: 38, height: 38, borderRadius: '50%',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700,
+                            background: isSelected ? 'var(--primary)' : '#f3f4f6',
+                            color: isSelected ? '#fff' : '#6b7280',
+                            border: isSelected ? '2px solid var(--primary)' : '1.5px solid #e5e7eb',
+                            boxShadow: isSelected ? '0 3px 10px rgba(217,90,43,0.3)' : 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <span>{d.short}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="label" style={{ marginBottom: 4 }}>Shop Timings</div>
+                  <div className="flex gap-3 items-center">
+                    <div style={{ flex: 1 }}>
+                      <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Opens At</span>
+                      <input type="time" className="input-field" value={openTime} onChange={e => setOpenTime(e.target.value)} />
+                    </div>
+                    <span className="caption" style={{ marginTop: 14 }}>to</span>
+                    <div style={{ flex: 1 }}>
+                      <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Closes At</span>
+                      <input type="time" className="input-field" value={closeTime} onChange={e => setCloseTime(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  className="btn-primary"
+                  disabled={isSavingSchedule}
+                  onClick={handleSaveScheduleModal}
+                  style={{ marginTop: 8 }}
+                >
+                  {isSavingSchedule ? 'Saving...' : 'Save Schedule'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -1019,31 +1921,6 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
   const [description, setDescription] = useState('');
   const [avail, setAvail] = useState('Available now');
   const [photos, setPhotos] = useState<string[]>([]);
-  const [openDays, setOpenDays] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
-  const [openTime, setOpenTime] = useState('09:00');
-  const [closeTime, setCloseTime] = useState('21:00');
-
-  const allWeekDays = [
-    { id: 'Sun', name: 'Sunday', short: 'S' },
-    { id: 'Mon', name: 'Monday', short: 'M' },
-    { id: 'Tue', name: 'Tuesday', short: 'T' },
-    { id: 'Wed', name: 'Wednesday', short: 'W' },
-    { id: 'Thu', name: 'Thursday', short: 'T' },
-    { id: 'Fri', name: 'Friday', short: 'F' },
-    { id: 'Sat', name: 'Saturday', short: 'S' },
-  ];
-
-  const toggleDay = (dayId: string) => {
-    if (openDays.includes(dayId)) {
-      if (openDays.length === 1) {
-        showError('Select at least 1 operating day.');
-        return;
-      }
-      setOpenDays(openDays.filter(d => d !== dayId));
-    } else {
-      setOpenDays([...openDays, dayId]);
-    }
-  };
 
   useEffect(() => {
     const userPhone = localStorage.getItem('salonista_user_phone');
@@ -1060,11 +1937,6 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
             setDescription(s.description || '');
             setAvail(s.avail || 'Available now');
             setPhotos(s.photos || []);
-            if (s.schedule) {
-              if (Array.isArray(s.schedule.openDays)) setOpenDays(s.schedule.openDays);
-              if (s.schedule.openTime) setOpenTime(s.schedule.openTime);
-              if (s.schedule.closeTime) setCloseTime(s.schedule.closeTime);
-            }
             localStorage.setItem('salonista_owner_salon_id', s.id);
           }
         }
@@ -1127,12 +1999,6 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
 
     setIsSaving(true);
     try {
-      const scheduleData = {
-        openDays,
-        openTime,
-        closeTime
-      };
-
       const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1142,8 +2008,7 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
           map_url: mapUrl,
           description,
           avail,
-          photos,
-          schedule: scheduleData
+          photos
         })
       });
       const d = await res.json();
@@ -1152,7 +2017,7 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
           localStorage.setItem('salonista_owner_salon_id', d.data.id);
           localStorage.setItem('salonista_owner_salon', JSON.stringify(d.data));
         }
-        showSuccess('Salon profile & schedule updated successfully!');
+        showSuccess('Salon profile updated successfully!');
         navigate(mode === 'solo' ? '/owner/solo/details' : '/owner/team/details');
       } else {
         showError(d.error || 'Failed to update salon');
@@ -1225,59 +2090,6 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
               onChange={e => setMapUrl(e.target.value)}
               placeholder="https://maps.app.goo.gl/..."
             />
-          </div>
-
-          {/* Operating Days Bubbles */}
-          <div>
-            <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
-              <div className="label" style={{ marginBottom: 0 }}>Operating Days (Sunday – Saturday)</div>
-              <span className="caption" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 11 }}>
-                {openDays.length === 7 ? 'Open Everyday' : `${openDays.length} Days Open`}
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center" style={{ gap: 6, marginTop: 4 }}>
-              {allWeekDays.map(d => {
-                const isSelected = openDays.includes(d.id);
-                return (
-                  <motion.button
-                    key={d.id}
-                    type="button"
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => toggleDay(d.id)}
-                    style={{
-                      width: 40, height: 40, borderRadius: '50%',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700,
-                      background: isSelected ? 'var(--primary)' : '#f3f4f6',
-                      color: isSelected ? '#fff' : '#6b7280',
-                      border: isSelected ? '2px solid var(--primary)' : '1.5px solid #e5e7eb',
-                      boxShadow: isSelected ? '0 3px 10px rgba(217,90,43,0.3)' : 'none',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <span>{d.short}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Opening & Closing Hours */}
-          <div>
-            <div className="label" style={{ marginBottom: 4 }}>Shop Timings</div>
-            <div className="flex gap-3 items-center">
-              <div style={{ flex: 1 }}>
-                <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Opens At</span>
-                <input type="time" className="input-field" value={openTime} onChange={e => setOpenTime(e.target.value)} />
-              </div>
-              <span className="caption" style={{ marginTop: 14 }}>to</span>
-              <div style={{ flex: 1 }}>
-                <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Closes At</span>
-                <input type="time" className="input-field" value={closeTime} onChange={e => setCloseTime(e.target.value)} />
-              </div>
-            </div>
           </div>
 
           <div>
@@ -2284,12 +3096,12 @@ export default function OwnerFlow() {
     <>
       <Routes>
         {/* Default → redirect-style: show services if 0 services, else Bookings (OwnerHistory) */}
-        <Route path="/" element={hasServices ? <OwnerHistory mode="solo" /> : <ServicesScreen mode="solo" />} />
+        <Route path="/" element={hasServices ? <OwnerHistory mode="solo" /> : <ServicesScreen mode="solo" onServicesUpdate={list => setHasServices(list.length > 0)} />} />
 
         {/* Solo Owner routes */}
         <Route path="solo/dashboard" element={<AnalyticsScreen mode="solo" />} />
         <Route path="solo/queue" element={<SoloQueueScreen />} />
-        <Route path="solo/services" element={<ServicesScreen mode="solo" />} />
+        <Route path="solo/services" element={<ServicesScreen mode="solo" onServicesUpdate={list => setHasServices(list.length > 0)} />} />
         <Route path="solo/history" element={<OwnerHistory mode="solo" />} />
         <Route path="solo/details" element={<DetailsScreen mode="solo" />} />
         <Route path="solo/edit-profile" element={<EditSalonProfileScreen mode="solo" />} />
@@ -2297,7 +3109,7 @@ export default function OwnerFlow() {
         {/* Owner + Staff routes */}
         <Route path="team/dashboard" element={<AnalyticsScreen mode="team" />} />
         <Route path="team/queue" element={<OwnerQueueScreen />} />
-        <Route path="team/services" element={<ServicesScreen mode="team" />} />
+        <Route path="team/services" element={<ServicesScreen mode="team" onServicesUpdate={list => setHasServices(list.length > 0)} />} />
         <Route path="team/staff" element={<StaffManagement />} />
         <Route path="team/history" element={<OwnerHistory mode="team" />} />
         <Route path="team/details" element={<DetailsScreen mode="team" />} />

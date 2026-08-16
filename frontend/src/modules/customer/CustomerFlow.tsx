@@ -1052,7 +1052,33 @@ function SalonProfile() {
     avail: 'Unavailable'
   };
 
-  // Custom variants so it slides back out to the right when popping the view
+  // Real-time schedule calculation
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinutes = now.getMinutes();
+  const currentTotalMins = currentHour * 60 + currentMinutes;
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const todayDayName = dayNames[now.getDay()];
+
+  const openDays: string[] = Array.isArray(displaySalon?.schedule?.openDays)
+    ? displaySalon.schedule.openDays
+    : ['Mon', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  const isDayOpen = openDays.includes(todayDayName);
+  const [openHourStr, openMinStr] = (displaySalon?.schedule?.openTime || '09:00').split(':');
+  const [closeHourStr, closeMinStr] = (displaySalon?.schedule?.closeTime || '21:00').split(':');
+  const openTotalMins = parseInt(openHourStr || '9', 10) * 60 + parseInt(openMinStr || '0', 10);
+  const closeTotalMins = parseInt(closeHourStr || '21', 10) * 60 + parseInt(closeMinStr || '0', 10);
+
+  const isTimeClosed = currentTotalMins < openTotalMins || currentTotalMins >= closeTotalMins;
+  const isShopClosed = displaySalon.is_closed || !isDayOpen || isTimeClosed;
+
+  let closedReason = 'This salon is currently closed.';
+  if (displaySalon.is_closed) closedReason = 'This salon has paused bookings for today.';
+  else if (!isDayOpen) closedReason = `This salon is closed on ${todayDayName}s according to their weekly schedule.`;
+  else if (currentTotalMins >= closeTotalMins) closedReason = `Closed for today. Operating hours ended at ${displaySalon?.schedule?.closeTime || '21:00'}.`;
+  else if (currentTotalMins < openTotalMins) closedReason = `Opening today at ${displaySalon?.schedule?.openTime || '09:00'}.`;
+
   const profileVariants = {
     initial: { opacity: 0, x: 24 },
     in: { opacity: 1, x: 0 },
@@ -1080,7 +1106,7 @@ function SalonProfile() {
         }}>
           <Star size={14} fill="currentColor" /> {displaySalon.rating || 4.8} (120+ reviews)
         </span>
-        {displaySalon.is_closed ? (
+        {isShopClosed ? (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 600,
@@ -1088,7 +1114,7 @@ function SalonProfile() {
             padding: '4px 12px', borderRadius: 'var(--r-pill)',
           }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444' }} />
-            Closed for today
+            {currentTotalMins >= closeTotalMins ? 'Closed for the night' : !isDayOpen ? `Closed (${todayDayName})` : 'Closed now'}
           </span>
         ) : (
           <AvailTag text={displaySalon.avail || "Open — No wait"} />
@@ -1096,22 +1122,22 @@ function SalonProfile() {
       </div>
 
       <div style={{ marginBottom: 24 }}>
-        {displaySalon.is_closed ? (
+        {isShopClosed ? (
           <div style={{
             background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 'var(--r-md)',
             padding: '14px 16px', textAlign: 'center'
           }}>
             <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 2 }}>
-              Salon is Closed for Today
+              Salon is Closed Now
             </div>
             <div className="caption" style={{ color: '#6b7280', fontSize: 13 }}>
-              This salon has paused bookings for today. Please check back tomorrow.
+              {closedReason}
             </div>
             <button disabled style={{
               width: '100%', marginTop: 12, padding: '12px 16px', borderRadius: 'var(--r-md)',
               background: '#e5e7eb', color: '#9ca3af', border: 'none', fontWeight: 700, cursor: 'not-allowed'
             }}>
-              Bookings Paused
+              Bookings Closed
             </button>
           </div>
         ) : (
@@ -1495,7 +1521,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
   );
 }
 
-/* ─── Screen 2: Slot Picker ─── */
+/* ─── Screen 2: Slot Picker (Dynamic Real-Time Schedule & Past Time Filter) ─── */
 function SlotPicker() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1503,8 +1529,9 @@ function SlotPicker() {
   const searchParams = new URLSearchParams(location.search);
   const salonId = searchParams.get('salonId') || localStorage.getItem('salonista_booking_salon_id') || '';
 
-  const [time, setTime] = useState('10:00 AM');
+  const [time, setTime] = useState('');
   const [salon, setSalon] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (salonId) {
@@ -1512,15 +1539,50 @@ function SlotPicker() {
       fetch(`http://localhost:5000/api/salons/${salonId}`)
         .then(r => r.json())
         .then(d => { if (d.success) setSalon(d.data); })
-        .catch(console.error);
+        .catch(console.error)
+        .finally(() => setLoading(false));
     }
   }, [salonId]);
 
-  const slots = ['09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM', '07:00 PM'];
+  // Current real-time info
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinutes = now.getMinutes();
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const todayDayName = dayNames[now.getDay()];
+
+  // Check operating schedule
+  const openDays: string[] = Array.isArray(salon?.schedule?.openDays)
+    ? salon.schedule.openDays
+    : ['Mon', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  
+  const isOpenToday = openDays.includes(todayDayName) && !salon?.is_closed;
+
+  const [openHourStr, openMinStr] = (salon?.schedule?.openTime || '09:00').split(':');
+  const [closeHourStr, closeMinStr] = (salon?.schedule?.closeTime || '21:00').split(':');
+
+  const openMinutesTotal = parseInt(openHourStr || '9', 10) * 60 + parseInt(openMinStr || '0', 10);
+  const closeMinutesTotal = parseInt(closeHourStr || '21', 10) * 60 + parseInt(closeMinStr || '0', 10);
+  const currentMinutesTotal = currentHour * 60 + currentMinutes;
+
+  // Generate 30-minute interval slots between openTime and closeTime
+  const generatedSlots: { label: string; isPast: boolean }[] = [];
+  for (let m = openMinutesTotal; m < closeMinutesTotal; m += 30) {
+    const h = Math.floor(m / 60);
+    const mins = m % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayH = h % 12 === 0 ? 12 : h % 12;
+    const displayM = mins < 10 ? `0${mins}` : mins;
+    const label = `${displayH < 10 ? `0${displayH}` : displayH}:${displayM} ${ampm}`;
+    const isPast = m <= currentMinutesTotal;
+    generatedSlots.push({ label, isPast });
+  }
+
+  const availableSlots = generatedSlots.filter(s => !s.isPast);
 
   const handleProceed = () => {
     if (!time) {
-      showError('Please pick a time slot.');
+      showError('Please pick an available time slot.');
       return;
     }
     localStorage.setItem('salonista_booking_slot_time', time);
@@ -1536,25 +1598,82 @@ function SlotPicker() {
         <div className="ios-header-title">Pick Today's Slot</div>
       </div>
 
-      <div className="h3" style={{ marginBottom: 12 }}>Available Slots (Today)</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {slots.map(s => (
-          <button key={s} onClick={() => setTime(s)} style={{
-            background: 'var(--surface)',
-            border: `1.5px solid ${time === s ? 'var(--primary)' : 'var(--border)'}`,
-            borderRadius: 'var(--r-md)', padding: '13px',
-            fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600,
-            color: time === s ? 'var(--primary)' : 'var(--ink)', cursor: 'pointer',
-            boxShadow: time === s ? '0 2px 8px rgba(217,90,43,0.2)' : 'none'
-          }}>
-            {s}
+      {loading ? (
+        <div className="card text-center" style={{ padding: 40 }}>
+          <div className="caption">Loading salon schedule...</div>
+        </div>
+      ) : !isOpenToday ? (
+        <div className="card text-center" style={{ padding: 36, background: '#fee2e2', border: '1px solid #fca5a5' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🚪</div>
+          <div className="h3" style={{ color: '#991b1b', marginBottom: 4 }}>Salon is Closed Today ({todayDayName})</div>
+          <div className="caption" style={{ color: '#b91c1c', maxWidth: 300, margin: '0 auto 16px' }}>
+            This salon does not operate on {todayDayName}s according to their weekly schedule.
+          </div>
+          <button className="btn-secondary" onClick={() => navigate(-1)} style={{ width: 'auto', margin: '0 auto' }}>
+            ← Back to Salon Details
           </button>
-        ))}
-      </div>
+        </div>
+      ) : availableSlots.length === 0 ? (
+        <div className="card text-center" style={{ padding: 36, background: '#fffbeb', border: '1px solid #fde68a' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🌙</div>
+          <div className="h3" style={{ color: '#92400e', marginBottom: 4 }}>All Slots Finished for Today</div>
+          <div className="caption" style={{ color: '#b45309', maxWidth: 320, margin: '0 auto 16px' }}>
+            This salon closes at {(salon?.schedule?.closeTime || '21:00')}. No more booking slots are available for today. Please visit tomorrow morning!
+          </div>
+          <button className="btn-secondary" onClick={() => navigate(-1)} style={{ width: 'auto', margin: '0 auto' }}>
+            ← Back to Salon Details
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-between items-center" style={{ marginBottom: 12 }}>
+            <div className="h3" style={{ margin: 0 }}>Available Slots (Today)</div>
+            <span className="caption" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+              Closes at {salon?.schedule?.closeTime || '21:00'}
+            </span>
+          </div>
 
-      <div style={{ marginTop: 36 }}>
-        <button className="btn-primary" onClick={handleProceed}>Continue to Review & Book →</button>
-      </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {generatedSlots.map(s => {
+              if (s.isPast) {
+                return (
+                  <button key={s.label} disabled style={{
+                    background: '#f3f4f6',
+                    border: '1.5px solid #e5e7eb',
+                    borderRadius: 'var(--r-md)', padding: '13px',
+                    fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 500,
+                    color: '#9ca3af', cursor: 'not-allowed',
+                    textDecoration: 'line-through'
+                  }}>
+                    {s.label}
+                  </button>
+                );
+              }
+
+              const isSelected = time === s.label;
+              return (
+                <button key={s.label} onClick={() => setTime(s.label)} style={{
+                  background: isSelected ? 'var(--tag-critical-bg)' : 'var(--surface)',
+                  border: `1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 'var(--r-md)', padding: '13px',
+                  fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600,
+                  color: isSelected ? 'var(--primary)' : 'var(--ink)', cursor: 'pointer',
+                  boxShadow: isSelected ? '0 2px 8px rgba(217,90,43,0.2)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}>
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 36 }}>
+            <button className="btn-primary" disabled={!time} onClick={handleProceed}>
+              Continue to Review & Book →
+            </button>
+          </div>
+        </>
+      )}
     </motion.div>
   );
 }
@@ -1920,18 +2039,52 @@ function AppointmentsScreen() {
 /* ─── Screen 8: User Profile ─── */
 function UserScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showError } = useToast();
   const [phone, setPhone] = useState(() => localStorage.getItem('salonista_user_phone'));
   const [name, setName] = useState(() => localStorage.getItem('salonista_user_name') || 'Salonista Customer');
   const [isEditingName, setIsEditingName] = useState(false);
 
+  const searchParams = new URLSearchParams(location.search);
+  const redirectUrl = searchParams.get('redirect');
+
   // Sign In / Verify Modal state
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(() => !phone && Boolean(redirectUrl));
   const [phoneInput, setPhoneInput] = useState('');
   const [nameInput, setNameInput] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [isOtpVerified, setIsOtpVerified] = useState(false);
+
+  // Check & validate session against backend on mount (handles DB resets automatically)
+  useEffect(() => {
+    const savedPhone = localStorage.getItem('salonista_user_phone');
+    if (savedPhone) {
+      fetch(`http://localhost:5000/api/users/${savedPhone}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success || !data.data) {
+            // User was erased from database! Purge stale session
+            localStorage.removeItem('salonista_user_phone');
+            localStorage.removeItem('salonista_user_name');
+            localStorage.removeItem('salonista_owner_salon');
+            localStorage.removeItem('salonista_owner_salon_id');
+            setPhone(null);
+            setName('Salonista Customer');
+            if (redirectUrl) setShowVerifyModal(true);
+          } else {
+            // Sync current active database name
+            if (data.data.name && data.data.name !== name) {
+              setName(data.data.name);
+              localStorage.setItem('salonista_user_name', data.data.name);
+            }
+          }
+        })
+        .catch(() => {
+          // If offline or network error, keep offline cache
+        });
+    }
+  }, [redirectUrl]);
 
   const handleSendOtp = () => {
     if (phoneInput.trim().length < 10) {
@@ -1962,6 +2115,10 @@ function UserScreen() {
         setIsOtpVerified(false);
         setOtpSent(false);
         setOtpInput('');
+
+        if (redirectUrl) {
+          navigate(redirectUrl);
+        }
         return;
       }
     } catch (e) {
@@ -1994,6 +2151,10 @@ function UserScreen() {
     setIsOtpVerified(false);
     setOtpSent(false);
     setOtpInput('');
+
+    if (redirectUrl) {
+      navigate(redirectUrl);
+    }
   };
 
   const handleLogout = () => {
@@ -2327,11 +2488,11 @@ function ListSalonScreen() {
   const phone = localStorage.getItem('salonista_user_phone');
   const { showError, showSuccess } = useToast();
 
-  // Guard: if user is not logged in, redirect them to user profile to verify
+  // Guard: if user is not logged in, redirect them to user profile to sign in
   useEffect(() => {
     if (!phone) {
-      showError('Please sign in / verify your phone number before listing your salon.');
-      navigate('/user');
+      showError('Please sign in with your phone number to list your salon.');
+      navigate('/user?redirect=/list-salon', { replace: true });
     }
   }, [phone, navigate, showError]);
 
@@ -2344,8 +2505,15 @@ function ListSalonScreen() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-
   const handleSubmit = async () => {
+    // Check authentication first
+    const currentPhone = localStorage.getItem('salonista_user_phone');
+    if (!currentPhone) {
+      showError('Please sign in / verify your phone number to list your salon.');
+      navigate('/user?redirect=/list-salon');
+      return;
+    }
+
     // Validations
     if (!salonType) {
       showError('Please select how you operate.');

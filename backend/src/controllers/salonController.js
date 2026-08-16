@@ -35,6 +35,15 @@ export const salonController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async deleteSalon(req, res, next) {
+    try {
+      const result = await salonService.deleteSalon(req.params.id);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
   }
 };
 
