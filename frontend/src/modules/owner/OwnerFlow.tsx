@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, BarChart2, Scissors, Users, Phone, UserPlus, X, Home, Store, CalendarDays, Camera, MapPin, Clock } from 'lucide-react';
+import { Plus, Edit2, Trash2, BarChart2, Scissors, Users, Phone, UserPlus, X, Store, CalendarDays, Camera, MapPin, Clock } from 'lucide-react';
 import { MOCK_SERVICES, MOCK_STYLISTS, MOCK_BOOKINGS } from '../../data/mockData';
 import type { Stylist } from '../../data/mockData';
 import { useToast } from '../../context/ToastContext';
@@ -29,7 +29,6 @@ function OwnerBottomNav({ mode, hasServices = true }: { mode: 'solo' | 'team'; h
   const path = location.pathname;
 
   const soloTabs = [
-    { id: '/', icon: Home, label: 'Home' },
     { id: `/owner/solo/history`, icon: CalendarDays, label: 'Bookings' },
     { id: `/owner/solo/dashboard`, icon: BarChart2, label: 'Analytics' },
     { id: `/owner/solo/services`, icon: Scissors, label: 'Services' },
@@ -37,7 +36,6 @@ function OwnerBottomNav({ mode, hasServices = true }: { mode: 'solo' | 'team'; h
   ];
 
   const teamTabs = [
-    { id: '/', icon: Home, label: 'Home' },
     { id: `/owner/team/history`, icon: CalendarDays, label: 'Bookings' },
     { id: `/owner/team/dashboard`, icon: BarChart2, label: 'Analytics' },
     { id: `/owner/team/services`, icon: Scissors, label: 'Services' },
@@ -830,10 +828,26 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
         <button className="btn-secondary" style={{ marginTop: 14, fontSize: 13 }}>Download QR</button>
       </div>
 
-      {/* Account */}
+      {/* Account & Preview */}
       <div className="card" style={{ padding: 18 }}>
-        <div className="h3" style={{ marginBottom: 12 }}>Account</div>
+        <div className="h3" style={{ marginBottom: 12 }}>Account & View</div>
         <div className="flex-col" style={{ gap: 8 }}>
+          {salon?.id && (
+            <button
+              className="btn-secondary"
+              style={{
+                justifyContent: 'flex-start',
+                fontSize: 13,
+                color: 'var(--primary)',
+                borderColor: 'var(--primary)',
+                background: 'var(--tag-critical-bg)',
+                fontWeight: 600
+              }}
+              onClick={() => navigate(`/salon/${salon.id}`)}
+            >
+              👁️ Preview My Salon as Customer
+            </button>
+          )}
           {mode === 'team' && (
             <button className="btn-secondary" style={{ justifyContent: 'flex-start', fontSize: 13 }}>Change Staff PIN</button>
           )}
@@ -841,7 +855,12 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
           <button className="btn-secondary" style={{
             justifyContent: 'flex-start', fontSize: 13,
             color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)',
-          }} onClick={() => navigate('/')}>Logout</button>
+          }} onClick={() => {
+            localStorage.removeItem('salonista_user_phone');
+            localStorage.removeItem('salonista_owner_salon');
+            localStorage.removeItem('salonista_owner_salon_id');
+            navigate('/');
+          }}>Logout</button>
         </div>
       </div>
     </motion.div>

@@ -518,17 +518,30 @@ function DiscoveryScreen() {
 
 
 
-  // Fetch real salons from backend
+  // Fetch real salons from backend and check if logged in user is an owner
   useEffect(() => {
+    const userPhone = localStorage.getItem('salonista_user_phone');
+
     fetch('http://localhost:5000/api/salons')
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.data)) {
           setSalons(data.data);
+
+          // If the logged in user is a registered salon owner, redirect them directly to their Bookings page
+          if (userPhone) {
+            const ownedSalon = data.data.find((s: any) => s.owner_phone === userPhone);
+            if (ownedSalon) {
+              localStorage.setItem('salonista_owner_salon_id', ownedSalon.id);
+              localStorage.setItem('salonista_owner_salon', JSON.stringify(ownedSalon));
+              navigate('/owner/solo/history', { replace: true });
+              return;
+            }
+          }
         }
       })
       .catch(err => console.error('Failed to fetch salons:', err));
-  }, []);
+  }, [navigate]);
 
   // Attach computed dynamic distance from chosen location to salon map_url and sort by nearest
   // ONLY show salons to users once the owner has added at least 1 service
