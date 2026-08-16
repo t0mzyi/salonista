@@ -62,3 +62,35 @@ CREATE POLICY "Allow public insert on users" ON users
 DROP POLICY IF EXISTS "Allow public update on users" ON users;
 CREATE POLICY "Allow public update on users" ON users
   FOR UPDATE USING (true);
+
+
+-- 3. BOOKINGS TABLE
+CREATE TABLE IF NOT EXISTS bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  salon_id UUID REFERENCES salons(id) ON DELETE CASCADE,
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT,
+  service_ids JSONB DEFAULT '[]'::jsonb,
+  stylist_id TEXT,
+  start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+  status TEXT DEFAULT 'booked', -- 'booked', 'in_progress', 'completed', 'cancelled', 'no_show'
+  is_app_booking BOOLEAN DEFAULT TRUE,
+  total_price INTEGER DEFAULT 0,
+  total_duration_minutes INTEGER DEFAULT 30,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read on bookings" ON bookings;
+CREATE POLICY "Allow public read on bookings" ON bookings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Allow public insert on bookings" ON bookings;
+CREATE POLICY "Allow public insert on bookings" ON bookings FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public update on bookings" ON bookings;
+CREATE POLICY "Allow public update on bookings" ON bookings FOR UPDATE USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public delete on bookings" ON bookings;
+CREATE POLICY "Allow public delete on bookings" ON bookings FOR DELETE USING (true);

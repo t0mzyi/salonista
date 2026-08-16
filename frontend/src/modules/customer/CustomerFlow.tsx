@@ -1,10 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Clock, MapPin, Search, Star, QrCode, Home, CalendarDays, User, Building2, Edit2, X, Heart, Navigation, Phone, ShieldCheck, Camera, ChevronLeft, ChevronRight, Scissors } from 'lucide-react';
-
-
-import { MOCK_SERVICES, MOCK_BOOKINGS } from '../../data/mockData';
+import { CheckCircle2, Clock, MapPin, Search, Star, Home, CalendarDays, User, Building2, Edit2, X, Heart, Navigation, Phone, ShieldCheck, Camera, ChevronLeft, ChevronRight, Scissors } from 'lucide-react';
 import { KERALA_LOCATIONS } from '../../data/locations';
 import { calculateDistanceBetweenLocationAndMap, extractCoordsStrictlyFromMapUrl, KERALA_COORDINATES, getHaversineDistanceKm } from '../../utils/geoDistance';
 import BackButton from '../../components/BackButton';
@@ -1463,7 +1460,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
                   <div className="caption">{totalMin} min · {cart.length} service{cart.length > 1 ? 's' : ''}</div>
                 </div>
                 <button className="btn-primary" style={{ width: 'auto', padding: '14px 30px' }}
-                  onClick={() => navigate('/slot')}>
+                  onClick={() => navigate(`/slot?salonId=${salonId}`)}>
                   Continue →
                 </button>
               </div>
@@ -1478,18 +1475,45 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
 /* ─── Screen 2: Slot Picker ─── */
 function SlotPicker() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { showError } = useToast();
+  const searchParams = new URLSearchParams(location.search);
+  const salonId = searchParams.get('salonId') || localStorage.getItem('salonista_booking_salon_id') || '';
+
   const [time, setTime] = useState('10:00 AM');
-  const slots = ['10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '01:00 PM'];
+  const [salon, setSalon] = useState<any>(null);
+
+  useEffect(() => {
+    if (salonId) {
+      localStorage.setItem('salonista_booking_salon_id', salonId);
+      fetch(`http://localhost:5000/api/salons/${salonId}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setSalon(d.data); })
+        .catch(console.error);
+    }
+  }, [salonId]);
+
+  const slots = ['09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM', '07:00 PM'];
+
+  const handleProceed = () => {
+    if (!time) {
+      showError('Please pick a time slot.');
+      return;
+    }
+    localStorage.setItem('salonista_booking_slot_time', time);
+    navigate(`/otp?salonId=${salonId}`);
+  };
 
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
       className="page-container">
       <BackButton />
       <div className="ios-header">
-        <div className="ios-header-title">Pick a Slot</div>
+        <div className="ios-header-date">{salon?.name || 'Your Appointment'}</div>
+        <div className="ios-header-title">Pick Today's Slot</div>
       </div>
 
-      <div className="h3" style={{ marginBottom: 12 }}>Time</div>
+      <div className="h3" style={{ marginBottom: 12 }}>Available Slots (Today)</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {slots.map(s => (
           <button key={s} onClick={() => setTime(s)} style={{
@@ -1498,6 +1522,7 @@ function SlotPicker() {
             borderRadius: 'var(--r-md)', padding: '13px',
             fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 600,
             color: time === s ? 'var(--primary)' : 'var(--ink)', cursor: 'pointer',
+            boxShadow: time === s ? '0 2px 8px rgba(217,90,43,0.2)' : 'none'
           }}>
             {s}
           </button>
@@ -1505,34 +1530,144 @@ function SlotPicker() {
       </div>
 
       <div style={{ marginTop: 36 }}>
-        <button className="btn-primary" onClick={() => navigate('/otp')}>Review & Book</button>
+        <button className="btn-primary" onClick={handleProceed}>Continue to Review & Book →</button>
       </div>
     </motion.div>
   );
 }
 
-/* ─── Screen 3: OTP ─── */
-function OtpScreen() {
+/* ─── Screen 3: Customer Details & Booking Submission ─── */
+function OtpScreen({ cart = [], setCart }: { cart?: string[]; setCart?: (v: string[]) => void }) {
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
+  const location = useLocation();
+  const { showError, showSuccess } = useToast();
+  const searchParams = new URLSearchParams(location.search);
+  const salonId = searchParams.get('salonId') || localStorage.getItem('salonista_booking_salon_id') || '';
+  const slotTime = localStorage.getItem('salonista_booking_slot_time') || '10:00 AM';
+
+  const [salon, setSalon] = useState<any>(null);
+  const [name, setName] = useState(() => localStorage.getItem('salonista_user_name') || '');
+  const [phone, setPhone] = useState(() => localStorage.getItem('salonista_user_phone') || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (salonId) {
+      fetch(`http://localhost:5000/api/salons/${salonId}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setSalon(d.data); })
+        .catch(console.error);
+    }
+  }, [salonId]);
+
+  const handleConfirmBooking = async () => {
+    if (!name.trim()) {
+      showError('Please enter your name.');
+      return;
+    }
+    if (!phone.trim() || phone.replace(/\D/g, '').length < 10) {
+      showError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!salonId) {
+      showError('No salon selected.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const today = new Date();
+      const [timeStr, modifier] = slotTime.split(' ');
+      let [hours, minutes] = timeStr.split(':').map(Number);
+      if (modifier === 'PM' && hours < 12) hours += 12;
+      if (modifier === 'AM' && hours === 12) hours = 0;
+      today.setHours(hours, minutes, 0, 0);
+
+      const chosenServices = (salon?.services || []).filter((s: any) => cart.includes(s.id));
+      const totalPrice = chosenServices.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
+      const totalDuration = chosenServices.reduce((sum: number, s: any) => sum + (s.durationMinutes || 30), 0);
+
+      const payload = {
+        salon_id: salonId,
+        customer_name: name.trim(),
+        customer_phone: phone.trim(),
+        service_ids: cart,
+        start_time: today.toISOString(),
+        is_app_booking: true,
+        total_price: totalPrice,
+        total_duration_minutes: totalDuration || 30
+      };
+
+      const res = await fetch('http://localhost:5000/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const d = await res.json();
+
+      if (d.success && d.data) {
+        localStorage.setItem('salonista_user_name', name.trim());
+        localStorage.setItem('salonista_user_phone', phone.trim());
+        if (setCart) setCart([]);
+        showSuccess('Booking confirmed!');
+        navigate(`/confirmation?id=${d.data.id}`);
+      } else {
+        showError(d.error || 'Failed to place booking.');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Network error connecting to booking server.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
-      className="page-container flex-col" style={{ minHeight: '100vh', justifyContent: 'center' }}>
-      <div style={{ position: 'absolute', top: 40, left: 20 }}>
+      className="page-container flex-col" style={{ minHeight: '100vh', paddingBottom: 40 }}>
+      <div style={{ marginTop: 12 }}>
         <BackButton />
       </div>
-      <div className="ios-header">
-        <div className="ios-header-title">Your Details</div>
-        <p className="body" style={{ marginTop: 6 }}>Just your phone number to secure the booking — no account created.</p>
+
+      <div className="ios-header" style={{ marginTop: 8 }}>
+        <div className="ios-header-date">{salon?.name || 'Salonista'}</div>
+        <div className="ios-header-title">Confirm Booking</div>
       </div>
-      <div className="flex-col" style={{ gap: 12 }}>
-        <input type="tel" placeholder="Mobile number" className="input-field"
-          value={phone} onChange={e => setPhone(e.target.value)} />
-        <input type="number" placeholder="OTP (any 4 digits for demo)" className="input-field" />
+
+      <div className="card" style={{ padding: 18 }}>
+        <div className="h3" style={{ fontSize: 15, marginBottom: 12 }}>Your Contact Details</div>
+        <div className="flex-col" style={{ gap: 12 }}>
+          <div>
+            <div className="label" style={{ marginBottom: 4 }}>Your Full Name *</div>
+            <input
+              type="text"
+              placeholder="e.g. Rahul Sharma"
+              className="input-field"
+              value={name}
+              onChange={e => setName(e.target.value)}
+            />
+          </div>
+          <div>
+            <div className="label" style={{ marginBottom: 4 }}>Mobile Phone Number *</div>
+            <input
+              type="tel"
+              placeholder="10-digit mobile number"
+              className="input-field"
+              value={phone}
+              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+              maxLength={10}
+            />
+          </div>
+        </div>
       </div>
-      <div style={{ marginTop: 28 }}>
-        <button className="btn-primary" onClick={() => navigate('/confirmation')}>Confirm Booking</button>
+
+      <div style={{ marginTop: 24 }}>
+        <button
+          className="btn-primary"
+          disabled={isSubmitting}
+          onClick={handleConfirmBooking}
+        >
+          {isSubmitting ? 'Placing Booking...' : 'Confirm & Book'}
+        </button>
       </div>
     </motion.div>
   );
@@ -1541,61 +1676,55 @@ function OtpScreen() {
 /* ─── Screen 4: Confirmation ─── */
 function ConfirmationScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const bookingId = searchParams.get('id');
+
+  const [booking, setBooking] = useState<any>(null);
+
+  useEffect(() => {
+    if (bookingId) {
+      fetch(`http://localhost:5000/api/bookings/${bookingId}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setBooking(d.data); })
+        .catch(console.error);
+    }
+  }, [bookingId]);
+
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
-      className="page-container flex-col items-center" style={{ paddingTop: 60 }}>
+      className="page-container flex-col items-center" style={{ paddingTop: 40, paddingBottom: 60 }}>
       <div style={{ alignSelf: 'flex-start' }}>
         <BackButton to="/" label="Home" />
       </div>
 
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 14 }}
-        style={{ marginTop: 20 }}>
+        style={{ marginTop: 12 }}>
         <div style={{
-          width: 80, height: 80, borderRadius: '50%',
-          background: 'var(--tag-ok-bg)', border: '2px solid var(--border)',
+          width: 76, height: 76, borderRadius: '50%',
+          background: '#ecfdf5', border: '2px solid #34d399',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(16,185,129,0.2)'
         }}>
-          <CheckCircle2 size={40} color="var(--primary)" />
+          <CheckCircle2 size={40} color="#059669" />
         </div>
       </motion.div>
 
-      <div className="ios-header text-center" style={{ marginTop: 20 }}>
-        <div className="ios-header-title">Booking Confirmed</div>
+      <div className="ios-header text-center" style={{ marginTop: 16, marginBottom: 20 }}>
+        <div className="ios-header-title" style={{ fontSize: 24 }}>Booking Confirmed!</div>
       </div>
 
       <div className="card w-full" style={{
-        padding: '32px 24px',
-        border: 'none',
-        background: 'var(--surface)',
-        boxShadow: 'var(--shadow-lifted)',
-        position: 'relative',
-        overflow: 'hidden'
+        padding: '28px 22px', border: '1px solid var(--border)', background: 'var(--surface)',
       }}>
-        {/* Ticket cutouts */}
-        <div style={{ position: 'absolute', left: -16, top: '45%', width: 32, height: 32, borderRadius: '50%', background: 'var(--bg)', boxShadow: 'inset -4px 0 8px rgba(0,0,0,0.03)' }} />
-        <div style={{ position: 'absolute', right: -16, top: '45%', width: 32, height: 32, borderRadius: '50%', background: 'var(--bg)', boxShadow: 'inset 4px 0 8px rgba(0,0,0,0.03)' }} />
-
-        <div className="label" style={{ marginBottom: 4 }}>Date & Time</div>
-        <div className="h2" style={{ marginBottom: 24, fontSize: 24 }}>Today, 10:30 AM</div>
-
-        <div style={{ borderTop: '2px dashed var(--border)', margin: '0 -24px 24px', position: 'relative' }}></div>
-
-        <div className="label" style={{ marginBottom: 4 }}>Service</div>
-        <div className="h3" style={{ marginBottom: 24, fontSize: 18 }}>Premium Haircut</div>
-        <div style={{
-          background: 'var(--tag-warn-bg)',
-          border: '1px solid var(--accent)',
-          borderRadius: 'var(--r-md)', padding: 16,
-        }}>
-          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 700, color: 'var(--tag-warn-ink)', marginBottom: 4 }}>
-            ⚠ Arrival reminder
-          </div>
-          <p className="caption">Please arrive within 15 min of your slot or it may be released to the waitlist.</p>
+        <div className="label" style={{ marginBottom: 4 }}>Slot Time</div>
+        <div className="h2" style={{ marginBottom: 18, fontSize: 22 }}>
+          {booking?.start_time ? new Date(booking.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Today'}
         </div>
       </div>
 
-      <div style={{ marginTop: 16, width: '100%' }}>
-        <button className="btn-primary" onClick={() => navigate('/status')}>View Live Status</button>
+      <div style={{ marginTop: 20, width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button className="btn-primary" onClick={() => navigate('/appointments')}>View My Bookings</button>
       </div>
     </motion.div>
   );
@@ -1610,50 +1739,19 @@ function StatusScreen() {
       <BackButton />
       <div className="ios-header text-center">
         <div className="ios-header-date">Live tracker</div>
-        <div className="ios-header-title">You're #2 in line</div>
+        <div className="ios-header-title">You're #1 in line</div>
       </div>
 
-      {/* Big wait card */}
       <div className="card text-center" style={{
         background: 'var(--primary)', border: 'none', marginBottom: 16, padding: '36px 20px',
       }}>
         <div className="label" style={{ color: 'rgba(255,255,255,0.75)', marginBottom: 6 }}>Estimated wait</div>
-        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 72, fontWeight: 700, color: '#fff', lineHeight: 1 }}>15</div>
+        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 72, fontWeight: 700, color: '#fff', lineHeight: 1 }}>10</div>
         <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>minutes</div>
       </div>
 
-      {/* Delay notice */}
-      <div style={{
-        background: 'var(--tag-warn-bg)', border: '1px solid var(--accent)',
-        borderRadius: 'var(--r-md)', padding: '10px 14px', marginBottom: 16,
-      }}>
-        <span className="caption" style={{ color: 'var(--tag-warn-ink)', fontWeight: 600 }}>
-          Salon running ~5 min behind schedule
-        </span>
-      </div>
-
-      <div className="card" style={{ marginBottom: 0 }}>
-        {[{ pos: 1, name: 'In Chair', sub: 'Almost done', active: false },
-        { pos: 2, name: 'You', sub: 'Premium Haircut', active: true }].map(row => (
-          <div key={row.pos} className="flex items-center gap-3"
-            style={{ paddingBottom: row.pos === 1 ? 14 : 0, marginBottom: row.pos === 1 ? 14 : 0, borderBottom: row.pos === 1 ? '1px solid var(--border)' : 'none' }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-              background: row.active ? 'var(--primary)' : 'var(--tag-ok-bg)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'Poppins, sans-serif', fontWeight: 700, fontSize: 16,
-              color: row.active ? '#fff' : 'var(--ink-muted)',
-            }}>{row.pos}</div>
-            <div>
-              <div className="h3">{row.name}</div>
-              <div className="caption">{row.sub}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ marginTop: 28 }}>
-        <button className="btn-secondary" onClick={() => navigate('/')}>Back to Salons</button>
+      <div style={{ marginTop: 24 }}>
+        <button className="btn-primary" onClick={() => navigate('/appointments')}>View All Bookings</button>
       </div>
     </motion.div>
   );
@@ -1664,143 +1762,121 @@ function QRLanding() {
   const navigate = useNavigate();
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
-      className="page-container flex-col items-center justify-center" style={{ minHeight: '100vh', padding: '24px' }}>
-      <div style={{ alignSelf: 'flex-start', position: 'absolute', top: 40, left: 24 }}>
-        <BackButton />
+      className="page-container flex-col items-center justify-center text-center" style={{ minHeight: '80vh', padding: 24 }}>
+      <div className="ios-header text-center" style={{ marginBottom: 28 }}>
+        <div className="ios-header-title" style={{ fontSize: 28 }}>Join the Live Queue</div>
+        <p className="body" style={{ marginTop: 8 }}>Select your service and secure your spot on today's queue.</p>
       </div>
 
-      <div style={{
-        width: 100, height: 100, borderRadius: 'var(--r-lg)',
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        boxShadow: 'var(--shadow-card)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        marginBottom: 32, marginTop: 40
-      }}>
-        <QrCode size={56} color="var(--primary)" />
-      </div>
-
-      <div className="ios-header text-center" style={{ marginBottom: 40 }}>
-        <div className="ios-header-date" style={{ color: 'var(--primary)' }}>Fade & Shave Studio</div>
-        <div className="ios-header-title" style={{ fontSize: 32 }}>Join the Line</div>
-        <p className="body" style={{ marginTop: 12, fontSize: 16 }}>Skip the waiting area. Get your digital token and join the live queue right from your phone.</p>
-      </div>
-
-      <div className="card w-full text-center" style={{
-        padding: '32px 24px',
-        border: '2px solid var(--primary)',
-        background: 'var(--tag-critical-bg)',
-        boxShadow: '0 8px 24px rgba(217, 90, 43, 0.15)'
-      }}>
-        <div className="h3" style={{ marginBottom: 8, color: 'var(--ink)' }}>No booking needed</div>
-        <p className="caption" style={{ marginBottom: 24, fontSize: 14, color: 'var(--ink-muted)' }}>Tap below to pick your service and get your token instantly.</p>
-        <button className="btn-primary" onClick={() => navigate('/services')} style={{ fontSize: 18, padding: '20px' }}>
-          Get Token & Join Queue
+      <div className="card w-full text-center" style={{ padding: '28px 20px' }}>
+        <button className="btn-primary" onClick={() => navigate('/services')} style={{ padding: '16px 24px', fontSize: 16 }}>
+          Browse Services & Book
         </button>
       </div>
     </motion.div>
   );
 }
 
-/* ─── Screen 7: Appointments ─── */
+/* ─── Screen 7: Dynamic Real-time Customer Appointments ─── */
 function AppointmentsScreen() {
-  const navigate = useNavigate();
-  const [bookings, setBookings] = useState(MOCK_BOOKINGS.filter(b => b.isAppBooking));
+  const { showError, showSuccess } = useToast();
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [salons, setSalons] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const phone = localStorage.getItem('salonista_user_phone');
+
+  const fetchCustomerBookings = () => {
+    if (!phone) { setLoading(false); return; }
+    Promise.all([
+      fetch('http://localhost:5000/api/salons').then(r => r.json()),
+      fetch(`http://localhost:5000/api/bookings?customerPhone=${phone}`).then(r => r.json())
+    ])
+      .then(([salonsData, bookingsData]) => {
+        if (salonsData.success) setSalons(salonsData.data);
+        if (bookingsData.success) setBookings(bookingsData.data);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchCustomerBookings(); }, [phone]);
+
+  const handleCancelBooking = async (id: string) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/bookings/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+      if ((await res.json()).success) {
+        setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b));
+        showSuccess('Booking cancelled.');
+      }
+    } catch { showError('Failed to cancel.'); }
+  };
 
   const statusColors: Record<string, string> = {
-    in_progress: 'tag tag-critical', booked: 'tag tag-warn',
-    completed: 'tag tag-ok', cancelled: 'tag tag-ok', no_show: 'tag tag-critical',
+    in_progress: 'tag tag-critical',
+    booked: 'tag tag-warn',
+    completed: 'tag tag-ok',
+    cancelled: 'tag tag-critical',
+    no_show: 'tag tag-critical',
   };
   const statusLabels: Record<string, string> = {
-    in_progress: 'In Progress', booked: 'Upcoming',
-    completed: 'Done', cancelled: 'Cancelled', no_show: 'No-show',
+    in_progress: 'In Chair',
+    booked: 'Upcoming',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    no_show: 'No-show',
   };
 
-  const handleCancel = (id: string) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' as const } : b));
-  };
+  const getSalonName = (id: string) => salons.find(x => x.id === id)?.name || 'Salon';
 
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
       className="page-container" style={{ paddingTop: 0, paddingBottom: 100 }}>
-
-      {/* Sticky top bar */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
-        background: 'linear-gradient(to bottom, var(--bg) 55%, rgba(255,251,245,0) 100%)',
-        margin: '0 calc(-1 * var(--page-h-pad))',
-        padding: '14px var(--page-h-pad) 40px var(--page-h-pad)',
-        pointerEvents: 'none',
-      }}>
-        <div className="flex justify-between items-center" style={{ pointerEvents: 'auto' }}>
-          <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: 'var(--primary)' }}>
-            Salonista
-          </span>
-          <button style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer'
-          }}>
-            <Heart size={18} color="var(--ink-muted)" />
-          </button>
-        </div>
+      <div className="ios-header">
+        <div className="ios-header-title">My Bookings</div>
       </div>
 
-      <div className="ios-header" style={{ marginTop: 0 }}>
-        <div className="ios-header-date">Your Activity</div>
-        <div className="ios-header-title">Bookings</div>
-      </div>
-
-      {bookings.length === 0 && (
-        <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-          <div className="body">No bookings yet.</div>
-          <button className="btn-primary" style={{ marginTop: 16, width: 'auto', margin: '16px auto 0' }} onClick={() => navigate('/')}>
-            Browse Salons
-          </button>
-        </div>
-      )}
-
-      <div className="flex-col" style={{ gap: 12 }}>
-        {bookings.map(b => {
-          const svc = MOCK_SERVICES.find(s => s.id === b.serviceIds[0]);
-          const canCancel = ['booked', 'in_progress'].includes(b.status);
-          return (
-            <div key={b.id} className="card" style={{ marginBottom: 0, padding: '16px 18px' }}>
+      {loading ? (
+        <div className="card text-center" style={{ padding: 32 }}>Loading...</div>
+      ) : bookings.length === 0 ? (
+        <div className="card text-center" style={{ padding: 32 }}>No bookings yet.</div>
+      ) : (
+        <div className="flex-col" style={{ gap: 12 }}>
+          {bookings.map(b => (
+            <div key={b.id} className="card" style={{ padding: '16px 18px', marginBottom: 0 }}>
               <div className="flex justify-between items-start" style={{ marginBottom: 8 }}>
                 <div>
-                  <div className="h3" style={{ fontSize: 15 }}>Fade & Shave Studio</div>
-                  <div className="caption" style={{ marginTop: 2 }}>
-                    {svc?.name} · {new Date(b.startTime).toLocaleDateString('en-IN')} at {new Date(b.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  <div className="h3" style={{ fontSize: 16 }}>{getSalonName(b.salon_id)}</div>
+                  <div className="caption" style={{ marginTop: 2, color: 'var(--ink)' }}>
+                    {new Date(b.start_time).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} at {new Date(b.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    {b.total_price > 0 && ` · ₹${b.total_price}`}
                   </div>
                 </div>
                 <span className={statusColors[b.status] ?? 'tag'}>{statusLabels[b.status] ?? b.status}</span>
               </div>
 
-              {canCancel && (
-                <div className="flex gap-2" style={{ marginTop: 10 }}>
-                  <button className="btn-secondary" style={{ flex: 1, padding: '8px 12px', fontSize: 13 }}
-                    onClick={() => navigate('/slot')}>
-                    Reschedule
-                  </button>
-                  <button className="btn-secondary" style={{
-                    flex: 1, padding: '8px 12px', fontSize: 13,
-                    color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)',
-                  }} onClick={() => handleCancel(b.id)}>
-                    Cancel
+              {b.status === 'booked' && (
+                <div className="flex gap-2" style={{ marginTop: 12 }}>
+                  <button
+                    className="btn-secondary"
+                    style={{
+                      flex: 1, padding: '8px 12px', fontSize: 13,
+                      color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)',
+                    }}
+                    onClick={() => handleCancelBooking(b.id)}
+                  >
+                    Cancel Booking
                   </button>
                 </div>
               )}
-
-              {b.status === 'completed' && (
-                <button className="btn-secondary" style={{ marginTop: 10, padding: '8px 12px', fontSize: 13 }}
-                  onClick={() => navigate('/status')}>
-                  View Details
-                </button>
-              )}
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -2544,7 +2620,7 @@ export default function CustomerFlow() {
         <Route path="/salon/:id" element={<SalonProfile />} />
         <Route path="/services" element={<ServiceList cart={cart} setCart={setCart} />} />
         <Route path="/slot" element={<SlotPicker />} />
-        <Route path="/otp" element={<OtpScreen />} />
+        <Route path="/otp" element={<OtpScreen cart={cart} setCart={setCart} />} />
         <Route path="/confirmation" element={<ConfirmationScreen />} />
         <Route path="/status" element={<StatusScreen />} />
         <Route path="/qr" element={<QRLanding />} />

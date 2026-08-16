@@ -1510,14 +1510,105 @@ function OwnerQueueScreen() {
    ═══════════════════════════════════════════ */
 
 function SoloQueueScreen() {
+  const { showSuccess, showError } = useToast();
   const [showWalkin, setShowWalkin] = useState(false);
   const [walkinName, setWalkinName] = useState('');
+  const [walkinPhone, setWalkinPhone] = useState('');
+  const [selectedServiceId, setSelectedServiceId] = useState('');
+  const [salon, setSalon] = useState<any>(null);
+  const [bookings, setBookings] = useState<any[]>([]);
 
-  const myBookings = MOCK_BOOKINGS; // solo owner sees everything
-  const activeBooking = myBookings.find(b => b.status === 'in_progress');
-  const nextBookings = myBookings.filter(b => b.status === 'booked');
-  const svcNames = (ids: string[]) =>
-    ids.map(id => MOCK_SERVICES.find(s => s.id === id)?.name).filter(Boolean).join(' + ');
+  const fetchQueue = () => {
+    const userPhone = localStorage.getItem('salonista_user_phone');
+    fetch('http://localhost:5000/api/salons')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && Array.isArray(d.data)) {
+          const s = d.data.find((x: any) => x.owner_phone === userPhone) || d.data[0];
+          if (s) {
+            setSalon(s);
+            if (s.services?.length && !selectedServiceId) {
+              setSelectedServiceId(s.services[0].id);
+            }
+            fetch(`http://localhost:5000/api/bookings?salonId=${s.id}`)
+              .then(br => br.json())
+              .then(bd => {
+                if (bd.success && Array.isArray(bd.data)) {
+                  setBookings(bd.data);
+                }
+              })
+              .catch(console.error);
+          }
+        }
+      })
+      .catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchQueue();
+  }, []);
+
+  const activeBooking = bookings.find(b => b.status === 'in_progress');
+  const nextBookings = bookings.filter(b => b.status === 'booked');
+
+  const svcNames = (ids: any) => {
+    if (!salon?.services || !Array.isArray(ids)) return 'Service';
+    return ids.map((id: string) => salon.services.find((s: any) => s.id === id)?.name).filter(Boolean).join(' + ') || 'Haircut';
+  };
+
+  const handleUpdateStatus = async (bookingId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if ((await res.json()).success) {
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: newStatus } : b));
+        showSuccess(`Booking updated to ${newStatus}`);
+      }
+    } catch {
+      showError('Failed to update booking');
+    }
+  };
+
+  const handleAddWalkin = async () => {
+    if (!walkinName.trim()) {
+      showError('Please enter customer name');
+      return;
+    }
+    if (!salon?.id) return;
+
+    try {
+      const chosenSvc = salon.services?.find((s: any) => s.id === selectedServiceId);
+      const res = await fetch('http://localhost:5000/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          salon_id: salon.id,
+          customer_name: walkinName.trim(),
+          customer_phone: walkinPhone.trim(),
+          service_ids: selectedServiceId ? [selectedServiceId] : [],
+          start_time: new Date().toISOString(),
+          is_app_booking: false,
+          total_price: chosenSvc?.price || 0,
+          total_duration_minutes: chosenSvc?.durationMinutes || 30
+        })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setBookings(prev => [...prev, d.data]);
+        setWalkinName('');
+        setWalkinPhone('');
+        setShowWalkin(false);
+        showSuccess('Walk-in added to queue!');
+      } else {
+        showError(d.error || 'Failed to add walk-in');
+      }
+    } catch {
+      showError('Network error adding walk-in');
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
@@ -1525,7 +1616,7 @@ function SoloQueueScreen() {
 
       <div className="flex justify-between items-center" style={{ marginTop: 16, marginBottom: 8 }}>
         <div className="ios-header" style={{ marginBottom: 0, marginTop: 0 }}>
-          <div className="ios-header-date">Single Owner</div>
+          <div className="ios-header-date">{salon?.name || 'Single Owner'}</div>
           <div className="ios-header-title" style={{ fontSize: 22 }}>My Queue</div>
         </div>
         <button className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13, gap: 4 }}
@@ -1539,25 +1630,38 @@ function SoloQueueScreen() {
       {activeBooking ? (
         <div className="card" style={{ background: 'var(--primary)', border: 'none', color: '#fff', marginBottom: 20 }}>
           <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
-            {activeBooking.customerName}
+            {activeBooking.customer_name}
           </div>
-          <div className="body" style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 12 }}>{svcNames(activeBooking.serviceIds)}</div>
+          <div className="body" style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 12 }}>
+            {svcNames(activeBooking.service_ids)} {activeBooking.total_price > 0 && `· ₹${activeBooking.total_price}`}
+          </div>
           <div className="flex gap-2" style={{ marginTop: 4 }}>
-            <button className="btn-done" style={{ flex: 2, background: '#fff', color: 'var(--primary)', padding: '12px 14px', fontSize: 14 }}>✓ Complete</button>
-            <button className="btn-secondary" style={{ flex: 1, padding: '12px 14px', fontSize: 14, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
-              Add
+            <button
+              className="btn-done"
+              style={{ flex: 2, background: '#fff', color: 'var(--primary)', padding: '12px 14px', fontSize: 14 }}
+              onClick={() => handleUpdateStatus(activeBooking.id, 'completed')}
+            >
+              ✓ Complete
             </button>
-            <button className="btn-secondary" style={{ flex: 1, padding: '12px 14px', fontSize: 14, borderColor: 'rgba(255,255,255,0.4)', color: '#fff', background: 'rgba(255,255,255,0.15)' }}>
+            <button
+              className="btn-secondary"
+              style={{ flex: 1, padding: '12px 14px', fontSize: 14, borderColor: 'rgba(255,255,255,0.4)', color: '#fff', background: 'rgba(255,255,255,0.15)' }}
+              onClick={() => handleUpdateStatus(activeBooking.id, 'cancelled')}
+            >
               Cancel
             </button>
           </div>
         </div>
       ) : (
         <div className="card text-center" style={{ padding: '28px 16px', marginBottom: 16 }}>
-          <div className="body" style={{ marginBottom: 12 }}>No one in chair</div>
+          <div className="body" style={{ marginBottom: 12 }}>No one currently in chair</div>
           {nextBookings.length > 0 && (
-            <button className="btn-primary" style={{ width: 'auto', margin: '0 auto' }}>
-              Call Next: {nextBookings[0].customerName}
+            <button
+              className="btn-primary"
+              style={{ width: 'auto', margin: '0 auto' }}
+              onClick={() => handleUpdateStatus(nextBookings[0].id, 'in_progress')}
+            >
+              Call Next: {nextBookings[0].customer_name}
             </button>
           )}
         </div>
@@ -1565,25 +1669,44 @@ function SoloQueueScreen() {
 
       {/* Queue */}
       <div className="h3" style={{ marginBottom: 8 }}>Up Next ({nextBookings.length})</div>
-      <div className="flex-col" style={{ gap: 8 }}>
-        {nextBookings.map((b, i) => (
-          <div key={b.id} className="card flex justify-between items-center" style={{ marginBottom: 0, padding: '12px 16px' }}>
-            <div className="flex items-center gap-3">
-              <div style={{
-                width: 36, height: 36, borderRadius: 'var(--r-sm)', flexShrink: 0,
-                background: 'var(--bg)', border: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'Poppins, sans-serif', fontWeight: 700, fontSize: 15, color: 'var(--ink)',
-              }}>#{i + 1}</div>
-              <div>
-                <div className="h3" style={{ fontSize: 14 }}>{b.customerName}</div>
-                <div className="caption" style={{ marginTop: 1 }}>{svcNames(b.serviceIds)}</div>
+      {nextBookings.length === 0 ? (
+        <div className="card text-center" style={{ padding: 24 }}>
+          <div className="caption">No customers in queue</div>
+        </div>
+      ) : (
+        <div className="flex-col" style={{ gap: 8 }}>
+          {nextBookings.map((b, i) => (
+            <div key={b.id} className="card flex justify-between items-center" style={{ marginBottom: 0, padding: '12px 16px' }}>
+              <div className="flex items-center gap-3">
+                <div style={{
+                  width: 36, height: 36, borderRadius: 'var(--r-sm)', flexShrink: 0,
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'Poppins, sans-serif', fontWeight: 700, fontSize: 15, color: 'var(--ink)',
+                }}>#{i + 1}</div>
+                <div>
+                  <div className="h3" style={{ fontSize: 14 }}>{b.customer_name}</div>
+                  <div className="caption" style={{ marginTop: 1 }}>
+                    {svcNames(b.service_ids)} · {new Date(b.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={b.is_app_booking ? 'tag tag-critical' : 'tag tag-ok'}>
+                  {b.is_app_booking ? 'App' : 'Walk-in'}
+                </span>
+                <button
+                  className="btn-primary"
+                  style={{ width: 'auto', padding: '6px 12px', fontSize: 11 }}
+                  onClick={() => handleUpdateStatus(b.id, 'in_progress')}
+                >
+                  Start
+                </button>
               </div>
             </div>
-            <span className={b.isAppBooking ? 'tag tag-critical' : 'tag tag-ok'}>{b.isAppBooking ? 'App' : 'Walk-in'}</span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Walk-in Modal */}
       <AnimatePresence>
@@ -1595,20 +1718,32 @@ function SoloQueueScreen() {
               onClick={e => e.stopPropagation()}
               style={{ background: 'var(--surface)', borderRadius: 'var(--r-md)', padding: 20, width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
               <div className="h2" style={{ marginBottom: 4, fontSize: 18 }}>Add Walk-in</div>
-              <div className="caption" style={{ marginBottom: 16 }}>Add a walk-in customer.</div>
+              <div className="caption" style={{ marginBottom: 16 }}>Add a customer to today's queue.</div>
               <div className="flex-col" style={{ gap: 12 }}>
                 <div>
-                  <div className="label" style={{ marginBottom: 4 }}>Customer Name</div>
+                  <div className="label" style={{ marginBottom: 4 }}>Customer Name *</div>
                   <input type="text" className="input-field" placeholder="e.g. Rahul"
                     value={walkinName} onChange={e => setWalkinName(e.target.value)} />
                 </div>
                 <div>
+                  <div className="label" style={{ marginBottom: 4 }}>Phone Number (Optional)</div>
+                  <input type="tel" className="input-field" placeholder="10-digit mobile"
+                    value={walkinPhone} onChange={e => setWalkinPhone(e.target.value)} />
+                </div>
+                <div>
                   <div className="label" style={{ marginBottom: 4 }}>Service</div>
-                  <select className="input-field" style={{ appearance: 'auto' }}>
-                    {MOCK_SERVICES.map(s => <option key={s.id} value={s.id}>{s.name} — ₹{s.price}</option>)}
+                  <select
+                    className="input-field"
+                    style={{ appearance: 'auto' }}
+                    value={selectedServiceId}
+                    onChange={e => setSelectedServiceId(e.target.value)}
+                  >
+                    {salon?.services?.map((s: any) => (
+                      <option key={s.id} value={s.id}>{s.name} — ₹{s.price}</option>
+                    ))}
                   </select>
                 </div>
-                <button className="btn-primary" onClick={() => { setWalkinName(''); setShowWalkin(false); }}>Add to Queue</button>
+                <button className="btn-primary" onClick={handleAddWalkin}>Add to Queue</button>
                 <button className="btn-secondary" onClick={() => setShowWalkin(false)}>Cancel</button>
               </div>
             </motion.div>
@@ -1628,8 +1763,11 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
   const [salon, setSalon] = useState<any>(null);
   const [isClosed, setIsClosed] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
+  const [filterTab, setFilterTab] = useState<'All' | 'Today' | 'Completed' | 'Cancelled'>('All');
 
-  useEffect(() => {
+  const fetchSalonAndBookings = () => {
     const userPhone = localStorage.getItem('salonista_user_phone');
     fetch('http://localhost:5000/api/salons')
       .then(res => res.json())
@@ -1639,10 +1777,28 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
           if (s) {
             setSalon(s);
             setIsClosed(Boolean(s.is_closed));
+
+            // Fetch live bookings for this salon
+            fetch(`http://localhost:5000/api/bookings?salonId=${s.id}`)
+              .then(r => r.json())
+              .then(bData => {
+                if (bData.success && Array.isArray(bData.data)) {
+                  setBookings(bData.data);
+                }
+              })
+              .catch(err => console.error('Error fetching bookings:', err))
+              .finally(() => setLoadingBookings(false));
           }
         }
       })
-      .catch(console.error);
+      .catch(err => {
+        console.error(err);
+        setLoadingBookings(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchSalonAndBookings();
   }, []);
 
   const handleToggleClosed = async (closedVal: boolean) => {
@@ -1672,13 +1828,59 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
     }
   };
 
+  const handleUpdateBookingStatus = async (bookingId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/bookings/${bookingId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: newStatus } : b));
+        showSuccess(newStatus === 'completed' ? 'Booking marked completed!' : `Booking ${newStatus}`);
+      } else {
+        showError(d.error || 'Failed to update booking status');
+      }
+    } catch (e) {
+      console.error(e);
+      showError('Network error updating booking');
+    }
+  };
+
   const statusColors: Record<string, string> = {
-    in_progress: 'tag tag-critical', booked: 'tag tag-warn',
-    completed: 'tag tag-ok', cancelled: 'tag tag-ok', no_show: 'tag tag-critical',
+    in_progress: 'tag tag-critical',
+    booked: 'tag tag-warn',
+    completed: 'tag tag-ok',
+    cancelled: 'tag tag-critical',
+    no_show: 'tag tag-critical',
   };
   const statusLabels: Record<string, string> = {
-    in_progress: 'In Chair', booked: 'Upcoming',
-    completed: 'Done', cancelled: 'Cancelled', no_show: 'No-show',
+    in_progress: 'In Chair',
+    booked: 'Upcoming',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    no_show: 'No-show',
+  };
+
+  // Filter dynamic bookings
+  const filteredBookings = bookings.filter(b => {
+    if (filterTab === 'Today') {
+      const bDate = new Date(b.start_time).toDateString();
+      const today = new Date().toDateString();
+      return bDate === today;
+    }
+    if (filterTab === 'Completed') return b.status === 'completed';
+    if (filterTab === 'Cancelled') return b.status === 'cancelled' || b.status === 'no_show';
+    return true;
+  });
+
+  const getServiceNames = (b: any) => {
+    if (!salon?.services || !Array.isArray(b.service_ids)) return 'Service';
+    return b.service_ids
+      .map((id: string) => salon.services.find((s: any) => s.id === id)?.name)
+      .filter(Boolean)
+      .join(' + ') || 'General Grooming';
   };
 
   return (
@@ -1688,7 +1890,7 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
       <div className="flex justify-between items-center" style={{ marginTop: 24, marginBottom: 16 }}>
         <div className="ios-header" style={{ marginTop: 0, marginBottom: 0 }}>
           <div className="ios-header-date">{salon?.name || (mode === 'solo' ? 'Single Owner' : 'Owner + Staff')}</div>
-          <div className="ios-header-title">Bookings</div>
+          <div className="ios-header-title">Bookings ({bookings.length})</div>
         </div>
 
         {/* 1-Tap Clean Day-Off Toggle */}
@@ -1757,47 +1959,94 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
       )}
 
       <div className="scroll-x flex gap-2" style={{ marginBottom: 20 }}>
-        {['All', 'Today', 'Completed', 'No-shows'].map((lbl, i) => (
-          <button key={lbl} className={`chip ${i === 0 ? 'active' : ''}`}>{lbl}</button>
+        {(['All', 'Today', 'Completed', 'Cancelled'] as const).map(lbl => (
+          <button
+            key={lbl}
+            onClick={() => setFilterTab(lbl)}
+            className={`chip ${filterTab === lbl ? 'active' : ''}`}
+          >
+            {lbl}
+          </button>
         ))}
       </div>
 
-      <motion.div className="flex-col" style={{ gap: 10 }} variants={staggerContainer} initial="initial" animate="animate">
-        {MOCK_BOOKINGS.map(b => {
-          const svc = MOCK_SERVICES.find(s => s.id === b.serviceIds[0]);
-          const stylist = MOCK_STYLISTS.find(s => s.id === b.stylistId);
-          return (
+      {loadingBookings ? (
+        <div className="card text-center" style={{ padding: '36px 20px' }}>
+          <div className="caption">Loading live bookings...</div>
+        </div>
+      ) : filteredBookings.length === 0 ? (
+        <div className="card text-center" style={{ padding: '48px 24px' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%', background: 'var(--bg)', border: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px'
+          }}>
+            <CalendarDays size={26} color="var(--ink-muted)" />
+          </div>
+          <div className="h3" style={{ marginBottom: 4 }}>No Bookings Yet</div>
+          <div className="caption" style={{ maxWidth: 320, margin: '0 auto' }}>
+            {filterTab === 'All'
+              ? 'When customers book an appointment through your salon page, bookings will appear here in real-time.'
+              : `No bookings found under "${filterTab}".`}
+          </div>
+        </div>
+      ) : (
+        <motion.div className="flex-col" style={{ gap: 10 }} variants={staggerContainer} initial="initial" animate="animate">
+          {filteredBookings.map(b => (
             <motion.div layout variants={fadeUpItem} key={b.id} className="card" style={{ marginBottom: 0, padding: '14px 18px' }}>
               <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
-                <div className="h3" style={{ fontSize: 14 }}>{b.customerName || 'Walk-in'}</div>
+                <div className="h3" style={{ fontSize: 15 }}>{b.customer_name || 'Customer'}</div>
                 <span className={statusColors[b.status] ?? 'tag'}>{statusLabels[b.status] ?? b.status}</span>
               </div>
-              <div className="caption">
-                {svc?.name} {mode === 'team' ? `· ${stylist?.name ?? 'Unassigned'}` : ''} · {new Date(b.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              <div className="caption" style={{ color: 'var(--ink)' }}>
+                {getServiceNames(b)} · {new Date(b.start_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                {b.total_price > 0 && ` · ₹${b.total_price}`}
               </div>
-              <div className="flex gap-2" style={{ marginTop: 6 }}>
-                <span className={b.isAppBooking ? 'tag tag-critical' : 'tag tag-ok'} style={{ fontSize: 10 }}>
-                  {b.isAppBooking ? 'App' : 'Walk-in'}
+              <div className="flex justify-between items-center" style={{ marginTop: 8 }}>
+                <span className={b.is_app_booking ? 'tag tag-critical' : 'tag tag-ok'} style={{ fontSize: 10 }}>
+                  {b.is_app_booking ? 'App Booking' : 'Walk-in'}
                 </span>
+                {b.customer_phone && (
+                  <span className="caption" style={{ fontSize: 11 }}>📞 {b.customer_phone}</span>
+                )}
               </div>
               
               {/* Action Buttons for active bookings */}
-              {(b.status === 'in_progress' || b.status === 'booked') && (
-                <div className="flex gap-2" style={{ marginTop: 12 }}>
-                  {b.status === 'in_progress' && (
-                    <motion.button whileTap={{ scale: 0.95 }} className="btn-done" style={{ flex: 1, padding: '8px 12px', fontSize: 13, background: 'var(--tag-ok-bg)', color: 'var(--tag-ok-ink)' }}>
-                      ✓ Complete
+              {(b.status === 'booked' || b.status === 'in_progress') && (
+                <div className="flex gap-2" style={{ marginTop: 14 }}>
+                  {b.status === 'booked' && (
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      className="btn-primary"
+                      style={{ flex: 1, padding: '8px 12px', fontSize: 12 }}
+                      onClick={() => handleUpdateBookingStatus(b.id, 'in_progress')}
+                    >
+                      Start (In Chair)
                     </motion.button>
                   )}
-                  <motion.button whileTap={{ scale: 0.95 }} className="btn-secondary" style={{ flex: 1, padding: '8px 12px', fontSize: 13, color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)', background: 'var(--tag-critical-bg)' }}>
+                  {b.status === 'in_progress' && (
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      className="btn-done"
+                      style={{ flex: 1, padding: '8px 12px', fontSize: 12, background: 'var(--tag-ok-bg)', color: 'var(--tag-ok-ink)' }}
+                      onClick={() => handleUpdateBookingStatus(b.id, 'completed')}
+                    >
+                      ✓ Mark Done
+                    </motion.button>
+                  )}
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    className="btn-secondary"
+                    style={{ flex: 1, padding: '8px 12px', fontSize: 12, color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)', background: 'var(--tag-critical-bg)' }}
+                    onClick={() => handleUpdateBookingStatus(b.id, 'cancelled')}
+                  >
                     Cancel
                   </motion.button>
                 </div>
               )}
             </motion.div>
-          );
-        })}
-      </motion.div>
+          ))}
+        </motion.div>
+      )}
     </motion.div>
   );
 }

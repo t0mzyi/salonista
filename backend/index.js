@@ -5,6 +5,7 @@ import { errorHandler } from './src/middlewares/errorHandler.js';
 import salonRoutes from './src/routes/salonRoutes.js';
 import userRoutes from './src/routes/userRoutes.js';
 import uploadRoutes from './src/routes/uploadRoutes.js';
+import bookingRoutes from './src/routes/bookingRoutes.js';
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/api/salons', salonRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 
 // Health Check
