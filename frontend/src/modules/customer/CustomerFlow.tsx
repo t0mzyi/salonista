@@ -400,18 +400,40 @@ function DiscoveryScreen() {
     showSuccess('Verification code sent! Use 1234');
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (otpInput.trim().length < 4) {
       showError('Please enter the 4-digit OTP.');
       return;
     }
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/${phoneInput.trim()}`);
+      const data = await res.json();
+
+      if (data.success && data.data && data.data.name) {
+        // User already registered! Auto-login directly without asking for name again
+        const existingName = data.data.name;
+        localStorage.setItem('salonista_user_phone', phoneInput.trim());
+        localStorage.setItem('salonista_user_name', existingName);
+        setShowPhoneVerifyModal(false);
+        setIsOtpVerified(false);
+        setOtpSent(false);
+        setOtpInput('');
+        showSuccess(`Welcome back, ${existingName}!`);
+        return;
+      }
+    } catch (e) {
+      console.warn('Error checking existing profile:', e);
+    }
+
+    // New user -> prompt for name
     setIsOtpVerified(true);
     showSuccess('Code verified! Please enter your name.');
   };
 
   const handleCompleteVerification = async () => {
     const finalName = nameInput.trim() || 'Salonista Customer';
-    localStorage.setItem('salonista_user_phone', phoneInput);
+    localStorage.setItem('salonista_user_phone', phoneInput.trim());
     localStorage.setItem('salonista_user_name', finalName);
 
     // Sync user with backend Supabase database
@@ -419,7 +441,7 @@ function DiscoveryScreen() {
       await fetch('http://localhost:5000/api/users/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneInput, name: finalName })
+        body: JSON.stringify({ phone: phoneInput.trim(), name: finalName })
       });
     } catch (err) {
       console.warn('Failed to sync user with backend:', err);
@@ -428,6 +450,7 @@ function DiscoveryScreen() {
     setShowPhoneVerifyModal(false);
     setIsOtpVerified(false);
     setOtpSent(false);
+    setOtpInput('');
     showSuccess(`Welcome to Salonista, ${finalName}!`);
   };
 
@@ -1653,7 +1676,20 @@ function OtpScreen({ cart = [], setCart }: { cart?: string[]; setCart?: (v: stri
               placeholder="10-digit mobile number"
               className="input-field"
               value={phone}
-              onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+              onChange={e => {
+                const val = e.target.value.replace(/\D/g, '');
+                setPhone(val);
+                if (val.length === 10 && !name.trim()) {
+                  fetch(`http://localhost:5000/api/users/${val}`)
+                    .then(r => r.json())
+                    .then(d => {
+                      if (d.success && d.data?.name) {
+                        setName(d.data.name);
+                      }
+                    })
+                    .catch(console.warn);
+                }
+              }}
               maxLength={10}
             />
           </div>
@@ -1905,19 +1941,42 @@ function UserScreen() {
     setOtpSent(true);
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (otpInput.trim().length < 4) {
       showError('Please enter the 4-digit OTP.');
       return;
     }
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/users/${phoneInput.trim()}`);
+      const data = await res.json();
+
+      if (data.success && data.data && data.data.name) {
+        // Existing user found: Auto sign in with saved name
+        const existingName = data.data.name;
+        localStorage.setItem('salonista_user_phone', phoneInput.trim());
+        localStorage.setItem('salonista_user_name', existingName);
+        setPhone(phoneInput.trim());
+        setName(existingName);
+        setShowVerifyModal(false);
+        setIsOtpVerified(false);
+        setOtpSent(false);
+        setOtpInput('');
+        return;
+      }
+    } catch (e) {
+      console.warn('Error fetching user profile:', e);
+    }
+
+    // New user -> prompt for name
     setIsOtpVerified(true);
   };
 
   const handleCompleteSignIn = async () => {
     const finalName = nameInput.trim() || 'Salonista Customer';
-    localStorage.setItem('salonista_user_phone', phoneInput);
+    localStorage.setItem('salonista_user_phone', phoneInput.trim());
     localStorage.setItem('salonista_user_name', finalName);
-    setPhone(phoneInput);
+    setPhone(phoneInput.trim());
     setName(finalName);
 
     // Sync with backend database
@@ -1925,7 +1984,7 @@ function UserScreen() {
       await fetch('http://localhost:5000/api/users/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneInput, name: finalName })
+        body: JSON.stringify({ phone: phoneInput.trim(), name: finalName })
       });
     } catch (err) {
       console.warn('Failed to sync user with backend:', err);
