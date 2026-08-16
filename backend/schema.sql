@@ -13,9 +13,11 @@ CREATE TABLE salons (
   rating FLOAT DEFAULT 4.8,
   price TEXT DEFAULT '$$',
   avail TEXT DEFAULT 'Available now',
+  is_closed BOOLEAN DEFAULT FALSE,
   description TEXT,
   photos JSONB DEFAULT '[]'::jsonb,
   services JSONB DEFAULT '[]'::jsonb,
+  schedule JSONB DEFAULT '{"openDays":["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],"openTime":"09:00","closeTime":"21:00"}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

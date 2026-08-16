@@ -88,6 +88,25 @@ export const salonService = {
       }
     }
 
+    // Validate services payload if provided
+    if (data.services && Array.isArray(data.services)) {
+      data.services = data.services.map(s => {
+        const priceNum = Math.abs(parseInt(String(s.price).replace(/[^0-9]/g, ''), 10));
+        const durationNum = Math.abs(parseInt(String(s.durationMinutes).replace(/[^0-9]/g, ''), 10));
+        if (isNaN(priceNum) || priceNum <= 0) {
+          throw new Error(`Service "${s.name || 'unnamed'}" must have a valid positive price without hyphens or negative signs`);
+        }
+        if (isNaN(durationNum) || durationNum <= 0) {
+          throw new Error(`Service "${s.name || 'unnamed'}" must have a valid positive duration in minutes`);
+        }
+        return {
+          ...s,
+          price: priceNum,
+          durationMinutes: durationNum
+        };
+      });
+    }
+
     return await salonModel.createSalon(data);
   },
 
@@ -99,6 +118,25 @@ export const salonService = {
       if (resolved && resolved.expandedUrl) {
         updateData.map_url = resolved.expandedUrl;
       }
+    }
+
+    // Validate services payload on update
+    if (updateData.services && Array.isArray(updateData.services)) {
+      updateData.services = updateData.services.map(s => {
+        const priceNum = Math.abs(parseInt(String(s.price).replace(/[^0-9]/g, ''), 10));
+        const durationNum = Math.abs(parseInt(String(s.durationMinutes).replace(/[^0-9]/g, ''), 10));
+        if (isNaN(priceNum) || priceNum <= 0) {
+          throw new Error(`Service "${s.name || 'unnamed'}" must have a valid positive price without hyphens or negative signs`);
+        }
+        if (isNaN(durationNum) || durationNum <= 0) {
+          throw new Error(`Service "${s.name || 'unnamed'}" must have a valid positive duration in minutes`);
+        }
+        return {
+          ...s,
+          price: priceNum,
+          durationMinutes: durationNum
+        };
+      });
     }
 
     return await salonModel.updateSalon(id, updateData);

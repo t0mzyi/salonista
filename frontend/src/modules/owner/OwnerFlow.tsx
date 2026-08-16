@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, BarChart2, Scissors, Users, Phone, UserPlus, X, Home, Store, CalendarDays, Camera, MapPin } from 'lucide-react';
+import { Plus, Edit2, Trash2, BarChart2, Scissors, Users, Phone, UserPlus, X, Home, Store, CalendarDays, Camera, MapPin, Clock } from 'lucide-react';
 import { MOCK_SERVICES, MOCK_STYLISTS, MOCK_BOOKINGS } from '../../data/mockData';
 import type { Stylist } from '../../data/mockData';
 import { useToast } from '../../context/ToastContext';
@@ -23,25 +23,25 @@ const fadeUpItem = {
    SHARED COMPONENTS
    ═══════════════════════════════════════════ */
 
-function OwnerBottomNav({ mode }: { mode: 'solo' | 'team' }) {
+function OwnerBottomNav({ mode, hasServices = true }: { mode: 'solo' | 'team'; hasServices?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
   const path = location.pathname;
 
   const soloTabs = [
     { id: '/', icon: Home, label: 'Home' },
+    { id: `/owner/solo/history`, icon: CalendarDays, label: 'Bookings' },
     { id: `/owner/solo/dashboard`, icon: BarChart2, label: 'Analytics' },
     { id: `/owner/solo/services`, icon: Scissors, label: 'Services' },
-    { id: `/owner/solo/history`, icon: CalendarDays, label: 'Bookings' },
     { id: `/owner/solo/details`, icon: Store, label: 'Details' },
   ];
 
   const teamTabs = [
     { id: '/', icon: Home, label: 'Home' },
+    { id: `/owner/team/history`, icon: CalendarDays, label: 'Bookings' },
     { id: `/owner/team/dashboard`, icon: BarChart2, label: 'Analytics' },
     { id: `/owner/team/services`, icon: Scissors, label: 'Services' },
     { id: `/owner/team/staff`, icon: Users, label: 'Staff' },
-    { id: `/owner/team/history`, icon: CalendarDays, label: 'Bookings' },
     { id: `/owner/team/details`, icon: Store, label: 'Details' },
   ];
 
@@ -60,14 +60,32 @@ function OwnerBottomNav({ mode }: { mode: 'solo' | 'team' }) {
       boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
     }}>
       {tabs.map(tab => {
-        const active = tab.id === '/' ? path === '/' : path.startsWith(tab.id);
+        const isServicesTab = tab.id.includes('/services');
+        const isCurrent = tab.id === '/' ? path === '/' : path.startsWith(tab.id);
+        const isLocked = !hasServices && !isServicesTab;
+
         return (
-          <button key={tab.id} onClick={() => navigate(tab.id)} style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-            color: active ? 'var(--primary)' : 'var(--ink-muted)',
-            transition: 'color 0.2s',
-          }}>
-            <tab.icon size={20} strokeWidth={active ? 2.5 : 2} />
+          <button
+            key={tab.id}
+            onClick={() => {
+              if (isLocked) {
+                // If 0 services and clicking another tab, re-route to services
+                navigate(mode === 'solo' ? '/owner/solo/services?openAdd=true' : '/owner/team/services?openAdd=true');
+              } else {
+                navigate(tab.id);
+              }
+            }}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+              color: isCurrent ? 'var(--primary)' : isLocked ? 'rgba(0,0,0,0.25)' : 'var(--ink-muted)',
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none',
+              transition: 'color 0.2s',
+              opacity: isLocked ? 0.5 : 1
+            }}
+          >
+            <tab.icon size={20} strokeWidth={isCurrent ? 2.5 : 2} />
             <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 10, fontWeight: 600 }}>
               {tab.label}
             </span>
@@ -229,45 +247,399 @@ function AnalyticsScreen({ mode }: { mode: 'solo' | 'team' }) {
 }
 
 function ServicesScreen({ mode }: { mode: 'solo' | 'team' }) {
-  const [services] = useState(MOCK_SERVICES);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { showError, showSuccess } = useToast();
+  const [salon, setSalon] = useState<any>(null);
+  const [services, setServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [nameInput, setNameInput] = useState('');
+  const [priceInput, setPriceInput] = useState('');
+  const [durationInput, setDurationInput] = useState('30');
+  const [emojiInput, setEmojiInput] = useState('✂️');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load active salon's real services and auto-open modal if requested or empty
+  useEffect(() => {
+    const userPhone = localStorage.getItem('salonista_user_phone');
+    const searchParams = new URLSearchParams(location.search);
+    const shouldOpenAdd = searchParams.get('openAdd') === 'true';
+
+    // Once we detect openAdd, strip it from the URL immediately so future page refreshes won't re-trigger it
+    if (shouldOpenAdd) {
+      navigate(location.pathname, { replace: true });
+    }
+
+    fetch('http://localhost:5000/api/salons')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data)) {
+          const s = data.data.find((x: any) => x.owner_phone === userPhone) || data.data[0];
+          if (s) {
+            setSalon(s);
+            const list = Array.isArray(s.services) ? s.services : [];
+            setServices(list);
+            if (shouldOpenAdd || list.length === 0) {
+              setShowModal(true);
+            }
+          }
+        }
+      })
+      .catch(err => console.error('Failed to load services:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const openAddModal = () => {
+    setEditingIndex(null);
+    setNameInput('');
+    setPriceInput('');
+    setDurationInput('30');
+    setEmojiInput('✂️');
+    setShowModal(true);
+  };
+
+  const openEditModal = (index: number) => {
+    const s = services[index];
+    setEditingIndex(index);
+    setNameInput(s.name || '');
+    setPriceInput(s.price ? String(s.price) : '');
+    setDurationInput(s.durationMinutes ? String(s.durationMinutes) : '30');
+    setEmojiInput(s.emoji || '✂️');
+    setShowModal(true);
+  };
+
+  const handleSaveService = async () => {
+    if (!nameInput.trim()) { showError('Service name is required'); return; }
+    const priceNum = parseFloat(priceInput);
+    if (isNaN(priceNum) || priceNum <= 0) { showError('Please enter a valid price'); return; }
+    const durNum = parseInt(durationInput, 10);
+    if (isNaN(durNum) || durNum <= 0) { showError('Please enter a valid duration'); return; }
+
+    if (!salon?.id) { showError('No salon found'); return; }
+
+    const newServiceObj = {
+      id: editingIndex !== null ? services[editingIndex].id : `svc_${Date.now()}`,
+      name: nameInput.trim(),
+      price: priceNum,
+      durationMinutes: durNum,
+      emoji: emojiInput || '✂️'
+    };
+
+    let updatedList: any[] = [];
+    if (editingIndex !== null) {
+      updatedList = [...services];
+      updatedList[editingIndex] = newServiceObj;
+    } else {
+      updatedList = [...services, newServiceObj];
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ services: updatedList })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setServices(updatedList);
+        const updatedSalon = { ...salon, services: updatedList };
+        setSalon(updatedSalon);
+        localStorage.setItem('salonista_owner_salon', JSON.stringify(updatedSalon));
+
+        // Clean up ?openAdd=true from URL so page doesn't keep thinking modal should re-open
+        navigate(location.pathname, { replace: true });
+        setShowModal(false);
+        showSuccess(editingIndex !== null ? 'Service updated!' : 'New service added!');
+      } else {
+        showError(d.error || 'Failed to save service');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Failed to connect to server');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteService = async (index: number) => {
+    if (!salon?.id) return;
+    const updatedList = services.filter((_, i) => i !== index);
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ services: updatedList })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setServices(updatedList);
+        const updatedSalon = { ...salon, services: updatedList };
+        setSalon(updatedSalon);
+        localStorage.setItem('salonista_owner_salon', JSON.stringify(updatedSalon));
+        showSuccess('Service deleted');
+      } else {
+        showError(d.error || 'Failed to delete service');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Failed to delete service');
+    }
+  };
+
+  const [isShaking, setIsShaking] = useState(false);
+
+  const handleCloseModal = () => {
+    if (services.length === 0) {
+      setIsShaking(false);
+      // Trigger a clean re-shake by toggling in next tick
+      requestAnimationFrame(() => {
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 900);
+      });
+      return;
+    }
+    setShowModal(false);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       className="page-container" style={{ maxWidth: 800, paddingBottom: 100 }}>
 
+      {/* Embedded keyframe for instantaneous shake without opacity changes */}
+      <style>{`
+        @keyframes modalViolentShake {
+          0%, 100% { transform: translateX(0); }
+          15% { transform: translateX(-18px) rotate(-1deg); }
+          30% { transform: translateX(18px) rotate(1deg); }
+          45% { transform: translateX(-12px) rotate(-0.5deg); }
+          60% { transform: translateX(12px) rotate(0.5deg); }
+          75% { transform: translateX(-6px); }
+          90% { transform: translateX(6px); }
+        }
+        .modal-shaking {
+          animation: modalViolentShake 0.55s ease-in-out !important;
+          border: 2px solid #ef4444 !important;
+          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.45), 0 24px 64px rgba(239, 68, 68, 0.35) !important;
+        }
+      `}</style>
+
       <div className="ios-header" style={{ marginTop: 24 }}>
-        <div className="ios-header-date">{mode === 'solo' ? 'Single Owner' : 'Owner + Staff'}</div>
+        <div className="ios-header-date">{salon?.name || (mode === 'solo' ? 'Single Owner' : 'Owner + Staff')}</div>
         <div className="ios-header-title">Service Menu</div>
       </div>
 
       <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
-        <p className="body">Manage the services offered.</p>
-        <button className="btn-primary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13, gap: 4 }}>
-          <Plus size={14} /> Add
+        <p className="body">Custom services and pricing for your salon.</p>
+        <button className="btn-primary" onClick={openAddModal} style={{ width: 'auto', padding: '8px 16px', fontSize: 13, gap: 6 }}>
+          <Plus size={15} /> Add Service
         </button>
       </div>
 
-      <div className="flex-col" style={{ gap: 10 }}>
-        {services.map(svc => (
-          <div key={svc.id} className="card flex justify-between items-center" style={{ marginBottom: 0, padding: '14px 16px' }}>
-            <div>
-              <div className="h3" style={{ fontSize: 14 }}>{svc.name}</div>
-              <div className="caption" style={{ marginTop: 2 }}>{svc.durationMinutes} min</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h3" style={{ fontSize: 14, color: 'var(--primary)' }}>₹{svc.price}</div>
-              <div className="flex gap-2">
-                <button style={{ padding: 7, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex' }}>
-                  <Edit2 size={13} color="var(--ink-muted)" />
-                </button>
-                <button style={{ padding: 7, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--tag-critical-bg)', cursor: 'pointer', display: 'flex' }}>
-                  <Trash2 size={13} color="var(--primary)" />
-                </button>
+      {loading ? (
+        <div className="card text-center" style={{ padding: 32 }}>
+          <div className="caption">Loading services...</div>
+        </div>
+      ) : services.length === 0 ? (
+        <div className="card text-center" style={{ padding: 40, border: '2px dashed var(--primary)', background: 'var(--tag-warn-bg)' }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: '50%', background: 'var(--tag-critical-bg)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px'
+          }}>
+            <Scissors size={28} color="var(--primary)" />
+          </div>
+          <div className="h3" style={{ marginBottom: 4 }}>Add At Least 1 Service to Launch</div>
+          <div className="caption" style={{ maxWidth: 300, margin: '0 auto 20px', color: 'var(--ink)' }}>
+            Your salon is currently hidden from customers. Once you add your first service (e.g. Haircut, Shave), customers will immediately see your salon and be able to book chairs!
+          </div>
+          <button className="btn-primary" onClick={openAddModal} style={{ width: 'auto', margin: '0 auto', padding: '10px 20px' }}>
+            <Plus size={16} /> Add Your First Service
+          </button>
+        </div>
+      ) : (
+        <div className="flex-col" style={{ gap: 10 }}>
+          {services.map((svc, i) => (
+            <div key={svc.id || i} className="card flex justify-between items-center" style={{ marginBottom: 0, padding: '14px 16px' }}>
+              <div className="flex items-center gap-3">
+                <div style={{
+                  width: 40, height: 40, borderRadius: 'var(--r-md)',
+                  background: 'var(--tag-ok-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18, border: '1px solid var(--border)'
+                }}>
+                  {svc.emoji || '✂️'}
+                </div>
+                <div>
+                  <div className="h3" style={{ fontSize: 15 }}>{svc.name}</div>
+                  <div className="caption" style={{ marginTop: 2 }}>{svc.durationMinutes} mins</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="h3" style={{ fontSize: 16, color: 'var(--primary)' }}>₹{svc.price}</div>
+                <div className="flex gap-2">
+                  <button onClick={() => openEditModal(i)} style={{ padding: 8, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex' }}>
+                    <Edit2 size={13} color="var(--ink-muted)" />
+                  </button>
+                  <button onClick={() => handleDeleteService(i)} style={{ padding: 8, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--tag-critical-bg)', cursor: 'pointer', display: 'flex' }}>
+                    <Trash2 size={13} color="var(--primary)" />
+                  </button>
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add / Edit Service Modal with Instant Shake animation (No Opacity Fade) */}
+      <AnimatePresence>
+        {showModal && (
+          <div
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(20,10,0,0.65)', zIndex: 120,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '20px', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)'
+            }}
+            onClick={handleCloseModal}>
+            <div
+              className={isShaking ? 'modal-shaking' : ''}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'var(--surface)',
+                borderRadius: 'var(--r-lg)',
+                padding: '24px',
+                width: '100%',
+                maxWidth: 400,
+                boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid var(--border)',
+                transition: 'border 0.9s ease, box-shadow 0.9s ease'
+              }}>
+
+              <div className="flex justify-between items-center" style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>
+                  {editingIndex !== null ? 'Edit Service' : 'Add New Service'}
+                </div>
+                <button onClick={handleCloseModal} style={{ padding: 6, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex' }}>
+                  <X size={15} color="var(--ink-muted)" />
+                </button>
+              </div>
+
+              {/* Mandatory First Service Notice Banner */}
+              {services.length === 0 && (
+                <div style={{
+                  background: isShaking ? '#fee2e2' : 'var(--tag-warn-bg)',
+                  border: isShaking ? '1.5px solid #ef4444' : '1px solid var(--accent)',
+                  borderRadius: 'var(--r-md)',
+                  padding: '10px 12px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s ease'
+                }}>
+                  <div style={{ fontSize: 16 }}>⚠️</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: isShaking ? '#b91c1c' : 'var(--ink)', lineHeight: 1.35 }}>
+                    Add at least 1 service to activate your salon &amp; proceed to the dashboard.
+                  </div>
+                </div>
+              )}
+
+              <div className="flex-col" style={{ gap: 14 }}>
+                <div>
+                  <div className="label" style={{ marginBottom: 4 }}>Service Name *</div>
+                  <input
+                    type="text"
+                    placeholder="e.g. Classic Haircut, Beard Trim"
+                    className="input-field"
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <div className="label" style={{ marginBottom: 4 }}>Price (₹) *</div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="e.g. 250"
+                      className="input-field"
+                      value={priceInput}
+                      onKeyDown={e => {
+                        if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault();
+                      }}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setPriceInput(val);
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div className="label" style={{ marginBottom: 4 }}>Duration (Mins) *</div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="e.g. 25"
+                      className="input-field"
+                      value={durationInput}
+                      onKeyDown={e => {
+                        if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault();
+                      }}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        setDurationInput(val);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="label" style={{ marginBottom: 6 }}>Choose Icon / Emoji</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {['✂️', '🪒', '🚿', '🎨', '💆‍♂️', '✨'].map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setEmojiInput(emoji)}
+                        style={{
+                          flex: 1,
+                          padding: '10px 0',
+                          borderRadius: 'var(--r-md)',
+                          fontSize: 20,
+                          background: emojiInput === emoji ? 'var(--tag-critical-bg)' : 'var(--bg)',
+                          border: `1.5px solid ${emojiInput === emoji ? 'var(--primary)' : 'var(--border)'}`,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  className="btn-primary"
+                  onClick={handleSaveService}
+                  disabled={isSaving}
+                  style={{ marginTop: 8 }}
+                >
+                  {isSaving ? 'Saving...' : editingIndex !== null ? 'Update Service' : 'Save Service'}
+                </button>
+              </div>
+
+            </div>
           </div>
-        ))}
-      </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -341,13 +713,11 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
               <MapPin size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
               <span>{salon?.location || 'Location not set'}</span>
             </div>
-            {salon?.avail && (
-              <div style={{ marginTop: 8 }}>
-                <span className="tag tag-ok" style={{ fontSize: 11 }}>
-                  {salon.avail}
-                </span>
-              </div>
-            )}
+            <div style={{ marginTop: 8 }}>
+              <span className={salon?.is_closed ? 'tag tag-critical' : 'tag tag-ok'} style={{ fontSize: 11 }}>
+                {salon?.is_closed ? 'Closed for today' : 'Open for bookings'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -374,6 +744,64 @@ function DetailsScreen({ mode }: { mode: 'solo' | 'team' }) {
             <Edit2 size={13} />
             <span>Edit Profile</span>
           </button>
+        </div>
+      </div>
+
+      {/* Working Hours & Weekly Schedule */}
+      <div className="card" style={{ padding: 18 }}>
+        <div className="flex justify-between items-center" style={{ marginBottom: 10 }}>
+          <div className="h3">Weekly Schedule & Hours</div>
+          <button
+            onClick={() => navigate(editPath)}
+            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Edit
+          </button>
+        </div>
+
+        {/* Timings */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+          <Clock size={16} color="var(--primary)" />
+          <span style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>
+            {(salon?.schedule?.openTime || '09:00')} — {(salon?.schedule?.closeTime || '21:00')}
+          </span>
+        </div>
+
+        {/* Sunday to Saturday day bubbles */}
+        <div className="flex justify-between items-center" style={{ gap: 6 }}>
+          {[
+            { id: 'Sun', label: 'S' },
+            { id: 'Mon', label: 'M' },
+            { id: 'Tue', label: 'T' },
+            { id: 'Wed', label: 'W' },
+            { id: 'Thu', label: 'T' },
+            { id: 'Fri', label: 'F' },
+            { id: 'Sat', label: 'S' },
+          ].map(d => {
+            const activeDays = Array.isArray(salon?.schedule?.openDays) 
+              ? salon.schedule.openDays 
+              : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const isOpen = activeDays.includes(d.id);
+
+            return (
+              <div key={d.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 700,
+                  background: isOpen ? 'var(--primary)' : '#f3f4f6',
+                  color: isOpen ? '#fff' : '#9ca3af',
+                  border: isOpen ? '1.5px solid var(--primary)' : '1.5px solid #e5e7eb',
+                  boxShadow: isOpen ? '0 2px 8px rgba(217,90,43,0.25)' : 'none'
+                }}>
+                  {d.label}
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 600, color: isOpen ? 'var(--primary)' : '#9ca3af' }}>
+                  {d.id}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -440,8 +868,31 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
   const [description, setDescription] = useState('');
   const [avail, setAvail] = useState('Available now');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [openDays, setOpenDays] = useState<string[]>(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
   const [openTime, setOpenTime] = useState('09:00');
   const [closeTime, setCloseTime] = useState('21:00');
+
+  const allWeekDays = [
+    { id: 'Sun', name: 'Sunday', short: 'S' },
+    { id: 'Mon', name: 'Monday', short: 'M' },
+    { id: 'Tue', name: 'Tuesday', short: 'T' },
+    { id: 'Wed', name: 'Wednesday', short: 'W' },
+    { id: 'Thu', name: 'Thursday', short: 'T' },
+    { id: 'Fri', name: 'Friday', short: 'F' },
+    { id: 'Sat', name: 'Saturday', short: 'S' },
+  ];
+
+  const toggleDay = (dayId: string) => {
+    if (openDays.includes(dayId)) {
+      if (openDays.length === 1) {
+        showError('Select at least 1 operating day.');
+        return;
+      }
+      setOpenDays(openDays.filter(d => d !== dayId));
+    } else {
+      setOpenDays([...openDays, dayId]);
+    }
+  };
 
   useEffect(() => {
     const userPhone = localStorage.getItem('salonista_user_phone');
@@ -458,6 +909,11 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
             setDescription(s.description || '');
             setAvail(s.avail || 'Available now');
             setPhotos(s.photos || []);
+            if (s.schedule) {
+              if (Array.isArray(s.schedule.openDays)) setOpenDays(s.schedule.openDays);
+              if (s.schedule.openTime) setOpenTime(s.schedule.openTime);
+              if (s.schedule.closeTime) setCloseTime(s.schedule.closeTime);
+            }
             localStorage.setItem('salonista_owner_salon_id', s.id);
           }
         }
@@ -520,6 +976,12 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
 
     setIsSaving(true);
     try {
+      const scheduleData = {
+        openDays,
+        openTime,
+        closeTime
+      };
+
       const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -529,7 +991,8 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
           map_url: mapUrl,
           description,
           avail,
-          photos
+          photos,
+          schedule: scheduleData
         })
       });
       const d = await res.json();
@@ -538,7 +1001,7 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
           localStorage.setItem('salonista_owner_salon_id', d.data.id);
           localStorage.setItem('salonista_owner_salon', JSON.stringify(d.data));
         }
-        showSuccess('Salon profile updated successfully!');
+        showSuccess('Salon profile & schedule updated successfully!');
         navigate(mode === 'solo' ? '/owner/solo/details' : '/owner/team/details');
       } else {
         showError(d.error || 'Failed to update salon');
@@ -579,7 +1042,7 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
 
       {/* Edit Form */}
       <div className="card" style={{ padding: 18 }}>
-        <div className="flex-col" style={{ gap: 14 }}>
+        <div className="flex-col" style={{ gap: 16 }}>
           <div>
             <div className="label" style={{ marginBottom: 4 }}>Salon Name *</div>
             <input
@@ -613,15 +1076,57 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
             />
           </div>
 
+          {/* Operating Days Bubbles */}
           <div>
-            <div className="label" style={{ marginBottom: 4 }}>Current Availability Status</div>
-            <input
-              type="text"
-              className="input-field"
-              value={avail}
-              onChange={e => setAvail(e.target.value)}
-              placeholder="e.g. Open — No wait or 15 min wait"
-            />
+            <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
+              <div className="label" style={{ marginBottom: 0 }}>Operating Days (Sunday – Saturday)</div>
+              <span className="caption" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 11 }}>
+                {openDays.length === 7 ? 'Open Everyday' : `${openDays.length} Days Open`}
+              </span>
+            </div>
+            
+            <div className="flex justify-between items-center" style={{ gap: 6, marginTop: 4 }}>
+              {allWeekDays.map(d => {
+                const isSelected = openDays.includes(d.id);
+                return (
+                  <motion.button
+                    key={d.id}
+                    type="button"
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => toggleDay(d.id)}
+                    style={{
+                      width: 40, height: 40, borderRadius: '50%',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'Poppins, sans-serif', fontSize: 13, fontWeight: 700,
+                      background: isSelected ? 'var(--primary)' : '#f3f4f6',
+                      color: isSelected ? '#fff' : '#6b7280',
+                      border: isSelected ? '2px solid var(--primary)' : '1.5px solid #e5e7eb',
+                      boxShadow: isSelected ? '0 3px 10px rgba(217,90,43,0.3)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span>{d.short}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Opening & Closing Hours */}
+          <div>
+            <div className="label" style={{ marginBottom: 4 }}>Shop Timings</div>
+            <div className="flex gap-3 items-center">
+              <div style={{ flex: 1 }}>
+                <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Opens At</span>
+                <input type="time" className="input-field" value={openTime} onChange={e => setOpenTime(e.target.value)} />
+              </div>
+              <span className="caption" style={{ marginTop: 14 }}>to</span>
+              <div style={{ flex: 1 }}>
+                <span className="caption" style={{ display: 'block', marginBottom: 2, fontSize: 11 }}>Closes At</span>
+                <input type="time" className="input-field" value={closeTime} onChange={e => setCloseTime(e.target.value)} />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -671,15 +1176,6 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
             </div>
           </div>
 
-          <div>
-            <div className="label" style={{ marginBottom: 4 }}>Opening Hours</div>
-            <div className="flex gap-3 items-center">
-              <input type="time" className="input-field" value={openTime} onChange={e => setOpenTime(e.target.value)} style={{ flex: 1 }} />
-              <span className="caption">to</span>
-              <input type="time" className="input-field" value={closeTime} onChange={e => setCloseTime(e.target.value)} style={{ flex: 1 }} />
-            </div>
-          </div>
-
           <div className="flex gap-2" style={{ marginTop: 8 }}>
             <button
               className="btn-primary"
@@ -687,7 +1183,7 @@ function EditSalonProfileScreen({ mode }: { mode: 'solo' | 'team' }) {
               onClick={handleSaveChanges}
               style={{ flex: 2 }}
             >
-              {isSaving ? 'Saving...' : 'Save Profile'}
+              {isSaving ? 'Saving...' : 'Save Profile & Schedule'}
             </button>
             <button
               className="btn-secondary"
@@ -1109,7 +1605,53 @@ function SoloQueueScreen() {
    ═══════════════════════════════════════════ */
 
 function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
-  const [showLeavesModal, setShowLeavesModal] = useState(false);
+  const { showError, showSuccess } = useToast();
+  const [salon, setSalon] = useState<any>(null);
+  const [isClosed, setIsClosed] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  useEffect(() => {
+    const userPhone = localStorage.getItem('salonista_user_phone');
+    fetch('http://localhost:5000/api/salons')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data)) {
+          const s = data.data.find((x: any) => x.owner_phone === userPhone) || data.data[0];
+          if (s) {
+            setSalon(s);
+            setIsClosed(Boolean(s.is_closed));
+          }
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleToggleClosed = async (closedVal: boolean) => {
+    if (!salon?.id) return;
+    setIsUpdatingStatus(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/salons/${salon.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_closed: closedVal, avail: closedVal ? 'Closed for today' : 'Available now' })
+      });
+      const d = await res.json();
+      if (d.success) {
+        setIsClosed(closedVal);
+        const updated = { ...salon, is_closed: closedVal, avail: closedVal ? 'Closed for today' : 'Available now' };
+        setSalon(updated);
+        localStorage.setItem('salonista_owner_salon', JSON.stringify(updated));
+        showSuccess(closedVal ? 'Salon marked closed for today' : 'Salon marked open & accepting bookings');
+      } else {
+        showError(d.error || 'Failed to update salon status');
+      }
+    } catch (e) {
+      console.error(e);
+      showError('Network error updating status');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const statusColors: Record<string, string> = {
     in_progress: 'tag tag-critical', booked: 'tag tag-warn',
@@ -1126,14 +1668,74 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
 
       <div className="flex justify-between items-center" style={{ marginTop: 24, marginBottom: 16 }}>
         <div className="ios-header" style={{ marginTop: 0, marginBottom: 0 }}>
-          <div className="ios-header-date">{mode === 'solo' ? 'Single Owner' : 'Owner + Staff'}</div>
+          <div className="ios-header-date">{salon?.name || (mode === 'solo' ? 'Single Owner' : 'Owner + Staff')}</div>
           <div className="ios-header-title">Bookings</div>
         </div>
-        <motion.button whileTap={{ scale: 0.95 }} className="btn-secondary" style={{ width: 'auto', padding: '8px 14px', fontSize: 13, gap: 4, background: 'var(--tag-critical-bg)', color: 'var(--tag-critical-ink)', borderColor: 'var(--tag-critical-ink)' }}
-          onClick={() => setShowLeavesModal(true)}>
-          Leaves
-        </motion.button>
+
+        {/* 1-Tap Clean Day-Off Toggle */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <motion.button
+            whileTap={{ scale: 0.94 }}
+            disabled={isUpdatingStatus}
+            onClick={() => handleToggleClosed(!isClosed)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              borderRadius: 'var(--r-pill)',
+              fontSize: 13,
+              fontFamily: 'Poppins, sans-serif',
+              fontWeight: 700,
+              cursor: isUpdatingStatus ? 'not-allowed' : 'pointer',
+              background: isClosed ? '#fee2e2' : '#ecfdf5',
+              color: isClosed ? '#b91c1c' : '#047857',
+              border: `1.5px solid ${isClosed ? '#f87171' : '#34d399'}`,
+              boxShadow: isClosed ? '0 2px 8px rgba(239,68,68,0.12)' : '0 2px 8px rgba(16,185,129,0.12)',
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: isClosed ? '#ef4444' : '#10b981',
+              boxShadow: isClosed ? '0 0 8px #ef4444' : '0 0 8px #10b981',
+              flexShrink: 0
+            }} />
+            <span>
+              {isUpdatingStatus ? 'Updating...' : isClosed ? 'Mark Salon Open' : 'Take Day Off'}
+            </span>
+          </motion.button>
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-muted)' }}>
+            {isClosed ? 'Salon is currently closed' : 'Tap to close for today'}
+          </span>
+        </div>
       </div>
+
+      {isClosed && (
+        <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+          style={{
+            background: '#fee2e2', border: '1.5px solid #ef4444', borderRadius: 'var(--r-md)',
+            padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#b91c1c' }}>
+              Your salon is currently marked as CLOSED today.
+            </span>
+          </div>
+          <button
+            onClick={() => handleToggleClosed(false)}
+            style={{
+              background: '#ef4444', color: '#fff', border: 'none', borderRadius: 'var(--r-pill)',
+              padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer'
+            }}>
+            Reopen
+          </button>
+        </motion.div>
+      )}
 
       <div className="scroll-x flex gap-2" style={{ marginBottom: 20 }}>
         {['All', 'Today', 'Completed', 'No-shows'].map((lbl, i) => (
@@ -1177,54 +1779,6 @@ function OwnerHistory({ mode }: { mode: 'solo' | 'team' }) {
           );
         })}
       </motion.div>
-
-      {/* Leaves Modal */}
-      <AnimatePresence>
-        {showLeavesModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(20,10,0,0.45)', zIndex: 100,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-            }}
-            onClick={() => setShowLeavesModal(false)}>
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: 'spring' as const, damping: 22, stiffness: 300 }}
-              onClick={e => e.stopPropagation()}
-              style={{ background: 'var(--surface)', borderRadius: 'var(--r-md)', padding: 20, width: '100%', maxWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-              
-              <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
-                <div className="h2" style={{ fontSize: 18 }}>Holidays & Leaves</div>
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowLeavesModal(false)} style={{ padding: 6, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex' }}>
-                  <X size={14} color="var(--ink-muted)" />
-                </motion.button>
-              </div>
-              
-              <div className="caption" style={{ marginBottom: 16 }}>Manage days when the shop is closed. Customers won't be able to book on these days.</div>
-              
-              <div className="flex-col" style={{ gap: 10 }}>
-                <div className="flex justify-between items-center" style={{ padding: '12px 14px', background: 'var(--tag-critical-bg)', borderRadius: 'var(--r-sm)', border: '1px solid var(--tag-critical-ink)' }}>
-                  <div>
-                    <div className="h3" style={{ fontSize: 14, color: 'var(--tag-critical-ink)' }}>Mark Closed Today</div>
-                    <div className="caption" style={{ color: 'var(--tag-critical-ink)', opacity: 0.8 }}>Pause all new bookings</div>
-                  </div>
-                  <input type="checkbox" style={{ width: 20, height: 20, accentColor: 'var(--tag-critical-ink)' }} />
-                </div>
-
-                <div style={{ marginTop: 4 }}>
-                  <div className="label" style={{ marginBottom: 4 }}>Upcoming Holiday</div>
-                  <div className="flex gap-2">
-                    <input type="date" className="input-field" style={{ flex: 2 }} />
-                    <button className="btn-secondary" style={{ flex: 1, padding: '0 12px', fontSize: 13 }}>Add</button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }
@@ -1245,6 +1799,7 @@ export default function OwnerFlow() {
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const [hasServices, setHasServices] = useState(false);
 
   useEffect(() => {
     const phone = localStorage.getItem('salonista_user_phone');
@@ -1264,6 +1819,13 @@ export default function OwnerFlow() {
             localStorage.setItem('salonista_owner_salon_id', userSalon.id);
             localStorage.setItem('salonista_owner_salon', JSON.stringify(userSalon));
             setHasAccess(true);
+            const list = Array.isArray(userSalon.services) ? userSalon.services : [];
+            setHasServices(list.length > 0);
+
+            // If owner has 0 services and tries to navigate away from services, redirect to services with openAdd=true
+            if (list.length === 0 && !path.includes('/services')) {
+              navigate(isSolo ? '/owner/solo/services?openAdd=true' : '/owner/team/services?openAdd=true', { replace: true });
+            }
           } else {
             setHasAccess(false);
           }
@@ -1321,8 +1883,8 @@ export default function OwnerFlow() {
   return (
     <>
       <Routes>
-        {/* Default → redirect-style: show dashboard */}
-        <Route path="/" element={<AnalyticsScreen mode="solo" />} />
+        {/* Default → redirect-style: show services if 0 services, else Bookings (OwnerHistory) */}
+        <Route path="/" element={hasServices ? <OwnerHistory mode="solo" /> : <ServicesScreen mode="solo" />} />
 
         {/* Solo Owner routes */}
         <Route path="solo/dashboard" element={<AnalyticsScreen mode="solo" />} />
@@ -1341,7 +1903,7 @@ export default function OwnerFlow() {
         <Route path="team/details" element={<DetailsScreen mode="team" />} />
         <Route path="team/edit-profile" element={<EditSalonProfileScreen mode="team" />} />
       </Routes>
-      {showNav && <OwnerBottomNav mode={mode} />}
+      {showNav && <OwnerBottomNav mode={mode} hasServices={hasServices} />}
     </>
   );
 }

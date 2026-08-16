@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Clock, MapPin, Search, Star, QrCode, Home, CalendarDays, User, Building2, Edit2, X, Heart, Navigation, Phone, ShieldCheck, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Clock, MapPin, Search, Star, QrCode, Home, CalendarDays, User, Building2, Edit2, X, Heart, Navigation, Phone, ShieldCheck, Camera, ChevronLeft, ChevronRight, Scissors } from 'lucide-react';
 
 
 import { MOCK_SERVICES, MOCK_BOOKINGS } from '../../data/mockData';
@@ -281,6 +281,83 @@ function BottomNav() {
   );
 }
 
+/* ─── Discovery Hero Auto Carousel Banner ─── */
+function DiscoveryHeroBanner({ sortedSalons, onSelect }: { sortedSalons: any[]; onSelect: (id: string) => void }) {
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  useEffect(() => {
+    if (sortedSalons.length <= 1) return;
+    const interval = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % Math.min(sortedSalons.length, 5));
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [sortedSalons.length]);
+
+  const activeSalon = sortedSalons[heroIndex] || sortedSalons[0];
+  if (!activeSalon) return null;
+
+  return (
+    <div 
+      onClick={() => onSelect(activeSalon.id)}
+      style={{
+        borderRadius: 'var(--r-lg)', overflow: 'hidden', height: 190,
+        position: 'relative', marginBottom: 32,
+        boxShadow: 'var(--shadow-lifted)',
+        cursor: 'pointer'
+      }}
+    >
+      <AnimatePresence mode="wait">
+        <motion.img 
+          key={activeSalon.id + (activeSalon.photos?.[0] || 'default')}
+          src={activeSalon.photos?.[0] || "/salon_banner.png"} 
+          alt={activeSalon.name}
+          initial={{ opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} 
+        />
+      </AnimatePresence>
+
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)',
+        zIndex: 1
+      }} />
+
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        padding: 20, zIndex: 2
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>
+            Featured Experience
+          </div>
+          {sortedSalons.length > 1 && (
+            <div style={{ display: 'flex', gap: 4 }}>
+              {sortedSalons.slice(0, 5).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: i === heroIndex ? 16 : 5,
+                    height: 5,
+                    borderRadius: 'var(--r-pill)',
+                    background: i === heroIndex ? 'var(--primary)' : 'rgba(255,255,255,0.4)',
+                    transition: 'all 0.3s ease',
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.95)' }}>
+          {activeSalon.name} • {activeSalon.location}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Screen 1: Discovery ─── */
 function DiscoveryScreen() {
   const navigate = useNavigate();
@@ -454,7 +531,9 @@ function DiscoveryScreen() {
   }, []);
 
   // Attach computed dynamic distance from chosen location to salon map_url and sort by nearest
+  // ONLY show salons to users once the owner has added at least 1 service
   const sortedSalons = salons
+    .filter(s => Array.isArray(s.services) && s.services.length > 0)
     .map(s => {
       // Calculate distance strictly between selected location and the salon's map_url (with location text fallback)
       const d = calculateDistanceBetweenLocationAndMap(currentLocation, s.map_url, s.location);
@@ -471,7 +550,8 @@ function DiscoveryScreen() {
       const matchName = s.name?.toLowerCase().includes(q);
       const matchLoc = s.location?.toLowerCase().includes(q);
       const matchDesc = s.description?.toLowerCase().includes(q);
-      return matchName || matchLoc || matchDesc;
+      const matchSvc = s.services?.some((x: any) => x.name?.toLowerCase().includes(q));
+      return matchName || matchLoc || matchDesc || matchSvc;
     })
     .sort((a, b) => a.calculatedDist - b.calculatedDist);
 
@@ -521,81 +601,10 @@ function DiscoveryScreen() {
   />
 </div>
 
-{/* Dynamic Auto-Carousel Hero banner (2-second rotation) */}
-{sortedSalons.length > 0 && (() => {
-  const [heroIndex, setHeroIndex] = useState(0);
-
-  useEffect(() => {
-    if (sortedSalons.length <= 1) return;
-    const interval = setInterval(() => {
-      setHeroIndex(prev => (prev + 1) % Math.min(sortedSalons.length, 5));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [sortedSalons.length]);
-
-  const activeSalon = sortedSalons[heroIndex] || sortedSalons[0];
-
-  return (
-    <div 
-      onClick={() => navigate(`/salon/${activeSalon.id}`)}
-      style={{
-        borderRadius: 'var(--r-lg)', overflow: 'hidden', height: 190,
-        position: 'relative', marginBottom: 32,
-        boxShadow: 'var(--shadow-lifted)',
-        cursor: 'pointer'
-      }}
-    >
-      <AnimatePresence mode="wait">
-        <motion.img 
-          key={activeSalon.id + (activeSalon.photos?.[0] || 'default')}
-          src={activeSalon.photos?.[0] || "/salon_banner.png"} 
-          alt={activeSalon.name}
-          initial={{ opacity: 0, scale: 1.04 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.4 }}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} 
-        />
-      </AnimatePresence>
-
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, transparent 100%)',
-        zIndex: 1
-      }} />
-
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
-        padding: 20, zIndex: 2
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>
-            Featured Experience
-          </div>
-          {sortedSalons.length > 1 && (
-            <div style={{ display: 'flex', gap: 4 }}>
-              {sortedSalons.slice(0, 5).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: i === heroIndex ? 16 : 5,
-                    height: 5,
-                    borderRadius: 'var(--r-pill)',
-                    background: i === heroIndex ? 'var(--primary)' : 'rgba(255,255,255,0.4)',
-                    transition: 'all 0.3s ease',
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.95)' }}>
-          {activeSalon.name} • {activeSalon.location}
-        </div>
-      </div>
-    </div>
-  );
-})()}
+{/* Dynamic Auto-Carousel Hero banner (4-second rotation) */}
+{sortedSalons.length > 0 && (
+  <DiscoveryHeroBanner sortedSalons={sortedSalons} onSelect={id => navigate(`/salon/${id}`)} />
+)}
 
 {/* Section header */}
 <div className="flex justify-between items-end" style={{ marginBottom: 16 }}>
@@ -620,12 +629,22 @@ function DiscoveryScreen() {
   ) : (
     sortedSalons.map(s => {
       const coverImg = s.photos?.[0];
+      const isShopClosed = Boolean(s.is_closed);
+
       return (
       <div key={s.id} className="card interactive" onClick={() => navigate(`/salon/${s.id}`)}
-        style={{ marginBottom: 0, display: 'flex', gap: 14, alignItems: 'center' }}>
+        style={{ 
+          marginBottom: 0, 
+          display: 'flex', 
+          gap: 14, 
+          alignItems: 'center',
+          background: isShopClosed ? '#f3f4f6' : 'var(--surface)',
+          border: isShopClosed ? '1px solid #e5e7eb' : '1px solid var(--border)',
+          opacity: isShopClosed ? 0.82 : 1
+        }}>
 
         {coverImg && (
-          <div style={{ width: 68, height: 68, borderRadius: 'var(--r-md)', overflow: 'hidden', flexShrink: 0 }}>
+          <div style={{ width: 68, height: 68, borderRadius: 'var(--r-md)', overflow: 'hidden', flexShrink: 0, filter: isShopClosed ? 'grayscale(70%)' : 'none' }}>
             <img src={coverImg} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
@@ -633,11 +652,14 @@ function DiscoveryScreen() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Name + rating row */}
           <div className="flex justify-between items-start" style={{ marginBottom: 4 }}>
-            <span className="h3" style={{ fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+            <span className="h3" style={{ fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isShopClosed ? '#6b7280' : 'var(--ink)' }}>
+              {s.name}
+            </span>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0,
               fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 700,
-              background: 'var(--tag-warn-bg)', color: 'var(--tag-warn-ink)',
+              background: isShopClosed ? '#e5e7eb' : 'var(--tag-warn-bg)', 
+              color: isShopClosed ? '#6b7280' : 'var(--tag-warn-ink)',
               padding: '2px 8px', borderRadius: 'var(--r-pill)',
             }}>
               <Star size={11} fill="currentColor" /> {s.rating || 4.8}
@@ -650,13 +672,25 @@ function DiscoveryScreen() {
             <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--ink-faint)', flexShrink: 0 }} />
             <span className="flex items-center" style={{ gap: 4 }}>
               <MapPin size={11} color="var(--ink-muted)" />
-              <span className="caption" style={{ fontWeight: 600, color: s.calculatedDist <= 3 ? 'var(--primary)' : 'var(--ink-muted)' }}>
+              <span className="caption" style={{ fontWeight: 600, color: !isShopClosed && s.calculatedDist <= 3 ? 'var(--primary)' : 'var(--ink-muted)' }}>
                 {s.distDisplay} away ({s.location})
               </span>
             </span>
           </div>
 
-          <AvailTag text={s.avail || 'Available now'} />
+          {isShopClosed ? (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              fontFamily: 'Poppins, sans-serif', fontSize: 11, fontWeight: 600,
+              background: '#e5e7eb', color: '#6b7280',
+              padding: '3px 9px', borderRadius: 'var(--r-pill)',
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#9ca3af' }} />
+              Closed for today
+            </span>
+          ) : (
+            <AvailTag text={s.avail || 'Available now'} />
+          )}
         </div>
       </div>
       );
@@ -946,19 +980,30 @@ function SalonProfile() {
         .then(res => res.json())
         .then(data => {
           if (data.success && data.data) {
-            setSalon(data.data);
+            const s = data.data;
+            // Silent redirect to home if salon has 0 services
+            if (!Array.isArray(s.services) || s.services.length === 0) {
+              navigate('/', { replace: true });
+              return;
+            }
+            setSalon(s);
+          } else {
+            navigate('/', { replace: true });
           }
         })
-        .catch(err => console.error('Error fetching salon details:', err))
+        .catch(() => {
+          navigate('/', { replace: true });
+        })
         .finally(() => setLoading(false));
+    } else {
+      navigate('/', { replace: true });
     }
-  }, [salonId]);
+  }, [salonId, navigate]);
 
-  if (loading && !salon) {
+  if (loading || !salon) {
     return (
       <div className="page-container flex-col items-center justify-center" style={{ minHeight: '60vh' }}>
-        <BackButton />
-        <div className="caption" style={{ marginTop: 24, fontSize: 14 }}>Loading salon details...</div>
+        <div className="caption" style={{ fontSize: 14 }}>Loading salon details...</div>
       </div>
     );
   }
@@ -1002,13 +1047,45 @@ function SalonProfile() {
         }}>
           <Star size={14} fill="currentColor" /> {displaySalon.rating || 4.8} (120+ reviews)
         </span>
-        <AvailTag text={displaySalon.avail || "Open — No wait"} />
+        {displaySalon.is_closed ? (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontFamily: 'Poppins, sans-serif', fontSize: 12, fontWeight: 600,
+            background: '#fee2e2', color: '#b91c1c',
+            padding: '4px 12px', borderRadius: 'var(--r-pill)',
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444' }} />
+            Closed for today
+          </span>
+        ) : (
+          <AvailTag text={displaySalon.avail || "Open — No wait"} />
+        )}
       </div>
 
       <div style={{ marginBottom: 24 }}>
-        <button className="btn-primary" onClick={() => navigate(`/services?salonId=${displaySalon.id}`)}>
-          View Services &amp; Book
-        </button>
+        {displaySalon.is_closed ? (
+          <div style={{
+            background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 'var(--r-md)',
+            padding: '14px 16px', textAlign: 'center'
+          }}>
+            <div style={{ fontFamily: 'Poppins, sans-serif', fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 2 }}>
+              Salon is Closed for Today
+            </div>
+            <div className="caption" style={{ color: '#6b7280', fontSize: 13 }}>
+              This salon has paused bookings for today. Please check back tomorrow.
+            </div>
+            <button disabled style={{
+              width: '100%', marginTop: 12, padding: '12px 16px', borderRadius: 'var(--r-md)',
+              background: '#e5e7eb', color: '#9ca3af', border: 'none', fontWeight: 700, cursor: 'not-allowed'
+            }}>
+              Bookings Paused
+            </button>
+          </div>
+        ) : (
+          <button className="btn-primary" onClick={() => navigate(`/services?salonId=${displaySalon.id}`)}>
+            View Services &amp; Book
+          </button>
+        )}
       </div>
 
       <p className="body" style={{ marginBottom: 24 }}>
@@ -1083,11 +1160,46 @@ function SalonProfile() {
           <div className="icon-box" style={{ background: 'var(--tag-ok-bg)' }}>
             <Clock size={20} color="var(--primary)" />
           </div>
-          <div>
-            <div className="h3">Opening Hours</div>
-            <div className="caption" style={{ marginTop: 2 }}>
-              Today: 9:00 AM - 9:00 PM<br />
-              Open all week
+          <div style={{ flex: 1 }}>
+            <div className="h3">Opening Hours & Schedule</div>
+            <div className="caption" style={{ marginTop: 2, fontWeight: 600, color: 'var(--ink)' }}>
+              {(displaySalon?.schedule?.openTime || '09:00')} — {(displaySalon?.schedule?.closeTime || '21:00')}
+            </div>
+
+            {/* Sunday to Saturday day bubbles */}
+            <div className="flex items-center gap-2" style={{ marginTop: 10 }}>
+              {[
+                { id: 'Sun', label: 'S' },
+                { id: 'Mon', label: 'M' },
+                { id: 'Tue', label: 'T' },
+                { id: 'Wed', label: 'W' },
+                { id: 'Thu', label: 'T' },
+                { id: 'Fri', label: 'F' },
+                { id: 'Sat', label: 'S' },
+              ].map(d => {
+                const activeDays = Array.isArray(displaySalon?.schedule?.openDays)
+                  ? displaySalon.schedule.openDays
+                  : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                const isOpen = activeDays.includes(d.id);
+
+                return (
+                  <div key={d.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: '50%',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'Poppins, sans-serif', fontSize: 10, fontWeight: 700,
+                      background: isOpen ? 'var(--primary)' : '#f3f4f6',
+                      color: isOpen ? '#fff' : '#9ca3af',
+                      border: isOpen ? '1px solid var(--primary)' : '1px solid #e5e7eb',
+                    }}>
+                      {d.label}
+                    </div>
+                    <span style={{ fontSize: 8, fontWeight: 600, color: isOpen ? 'var(--primary)' : '#9ca3af' }}>
+                      {d.id}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1116,13 +1228,6 @@ function SalonProfile() {
 
 /* ─── Screen 1: Service List ─── */
 
-// Icon emoji map so each service feels distinct without an icon library
-const SVC_EMOJI: Record<string, string> = {
-  s1: '✂️',
-  s2: '🪒',
-  s3: '🚿',
-  s4: '🎨',
-};
 
 function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[]) => void }) {
   const navigate = useNavigate();
@@ -1132,20 +1237,38 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
   const searchParams = new URLSearchParams(location.search);
   const salonId = searchParams.get('salonId');
 
-  const [salonName, setSalonName] = useState('Fade & Shave Studio');
+  const [salon, setSalon] = useState<any>(null);
+  const [services, setServices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (salonId) {
       fetch(`http://localhost:5000/api/salons/${salonId}`)
         .then(res => res.json())
         .then(data => {
-          if (data.success && data.data?.name) {
-            setSalonName(data.data.name);
+          if (data.success && data.data) {
+            const s = data.data;
+            if (!Array.isArray(s.services) || s.services.length === 0) {
+              navigate('/', { replace: true });
+              return;
+            }
+            if (s.is_closed) {
+              showError(`${s.name} is currently closed for today.`);
+              navigate(`/salon/${s.id}`, { replace: true });
+              return;
+            }
+            setSalon(s);
+            setServices(s.services);
+          } else {
+            navigate('/', { replace: true });
           }
         })
-        .catch(console.error);
+        .catch(() => navigate('/', { replace: true }))
+        .finally(() => setLoading(false));
+    } else {
+      navigate('/', { replace: true });
     }
-  }, [salonId]);
+  }, [salonId, navigate, showError]);
 
   const toggle = (id: string) => {
     if (cart.includes(id)) { setCart(cart.filter(c => c !== id)); return; }
@@ -1153,8 +1276,15 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
     setCart([...cart, id]);
   };
 
-  const total = cart.reduce((s, id) => s + (MOCK_SERVICES.find(x => x.id === id)?.price ?? 0), 0);
-  const totalMin = cart.reduce((s, id) => s + (MOCK_SERVICES.find(x => x.id === id)?.durationMinutes ?? 0), 0);
+  const total = cart.reduce((sum, id) => {
+    const s = services.find(x => x.id === id);
+    return sum + (s?.price ?? 0);
+  }, 0);
+
+  const totalMin = cart.reduce((sum, id) => {
+    const s = services.find(x => x.id === id);
+    return sum + (s?.durationMinutes ?? 0);
+  }, 0);
 
   return (
     <motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
@@ -1163,98 +1293,117 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
 
       {/* Header */}
       <div className="ios-header" style={{ marginBottom: 6 }}>
-        <div className="ios-header-date">{salonName}</div>
+        <div className="ios-header-date">{salon?.name || 'Salon Services'}</div>
         <div className="ios-header-title">Services</div>
       </div>
       <p className="body" style={{ marginBottom: 24 }}>Pick up to 2 services to combine in one visit.</p>
 
-      {/* Service cards — tall, portrait-style */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 120 }}>
-        {MOCK_SERVICES.map((svc, i) => {
-          const sel = cart.includes(svc.id);
-          return (
-            <motion.div
-              key={svc.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06, type: 'spring', stiffness: 300, damping: 26 }}
-              onClick={() => toggle(svc.id)}
-              style={{
-                background: sel ? 'var(--tag-critical-bg)' : 'var(--surface)',
-                border: `1.5px solid ${sel ? 'var(--primary)' : 'var(--border)'}`,
-                borderRadius: 'var(--r-lg)',
-                padding: '20px 16px',
-                cursor: 'pointer',
-                position: 'relative',
-                boxShadow: sel ? '0 6px 20px rgba(232,99,11,0.12)' : 'var(--shadow-card)',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-              }}
-            >
-              {/* Checkmark badge */}
-              {sel && (
+      {loading ? (
+        <div className="card text-center" style={{ padding: 40 }}>
+          <div className="caption">Loading service menu...</div>
+        </div>
+      ) : services.length === 0 ? (
+        <div className="card text-center" style={{ padding: 40 }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: '50%', background: 'var(--tag-warn-bg)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px'
+          }}>
+            <Scissors size={26} color="var(--primary)" />
+          </div>
+          <div className="h3" style={{ marginBottom: 4 }}>No Services Listed Yet</div>
+          <div className="caption" style={{ maxWidth: 280, margin: '0 auto' }}>
+            This salon has not added their custom service menu yet.
+          </div>
+        </div>
+      ) : (
+        /* Service cards — dynamic */
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 120 }}>
+          {services.map((svc, i) => {
+            const sel = cart.includes(svc.id);
+            return (
+              <motion.div
+                key={svc.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06, type: 'spring', stiffness: 300, damping: 26 }}
+                onClick={() => toggle(svc.id)}
+                style={{
+                  background: sel ? 'var(--tag-critical-bg)' : 'var(--surface)',
+                  border: `1.5px solid ${sel ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 'var(--r-lg)',
+                  padding: '20px 16px',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  boxShadow: sel ? '0 6px 20px rgba(232,99,11,0.12)' : 'var(--shadow-card)',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                {/* Checkmark badge */}
+                {sel && (
+                  <div style={{
+                    position: 'absolute', top: 12, right: 12,
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: 'var(--primary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <CheckCircle2 size={13} color="#fff" />
+                  </div>
+                )}
+
+                {/* Emoji icon */}
                 <div style={{
-                  position: 'absolute', top: 12, right: 12,
-                  width: 22, height: 22, borderRadius: '50%',
-                  background: 'var(--primary)',
+                  width: 44, height: 44, borderRadius: 'var(--r-md)',
+                  background: sel ? 'rgba(232,99,11,0.12)' : 'var(--tag-ok-bg)',
+                  border: '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22,
                 }}>
-                  <CheckCircle2 size={13} color="#fff" />
+                  {svc.emoji || '✂️'}
                 </div>
-              )}
 
-              {/* Emoji icon */}
-              <div style={{
-                width: 44, height: 44, borderRadius: 'var(--r-md)',
-                background: sel ? 'rgba(232,99,11,0.12)' : 'var(--tag-ok-bg)',
-                border: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22,
-              }}>
-                {SVC_EMOJI[svc.id] ?? '✂️'}
-              </div>
+                {/* Name */}
+                <div style={{
+                  fontFamily: 'Poppins, sans-serif',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: sel ? 'var(--primary)' : 'var(--ink)',
+                  lineHeight: 1.25,
+                }}>
+                  {svc.name}
+                </div>
 
-              {/* Name */}
-              <div style={{
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 16,
-                fontWeight: 700,
-                color: sel ? 'var(--primary)' : 'var(--ink)',
-                lineHeight: 1.25,
-              }}>
-                {svc.name}
-              </div>
+                {/* Duration pill */}
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: 'var(--tag-ok-bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--r-pill)',
+                  padding: '3px 8px',
+                  fontFamily: 'Poppins, sans-serif',
+                  fontSize: 12, fontWeight: 600,
+                  color: 'var(--ink-muted)',
+                  alignSelf: 'flex-start',
+                }}>
+                  <Clock size={11} /> {svc.durationMinutes} min
+                </div>
 
-              {/* Duration pill */}
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                background: 'var(--tag-ok-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--r-pill)',
-                padding: '3px 8px',
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 12, fontWeight: 600,
-                color: 'var(--ink-muted)',
-                alignSelf: 'flex-start',
-              }}>
-                <Clock size={11} /> {svc.durationMinutes} min
-              </div>
-
-              {/* Price */}
-              <div style={{
-                fontFamily: 'Poppins, sans-serif',
-                fontSize: 20, fontWeight: 700,
-                color: sel ? 'var(--primary)' : 'var(--ink)',
-                marginTop: 'auto',
-              }}>
-                ₹{svc.price}
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+                {/* Price */}
+                <div style={{
+                  fontFamily: 'Poppins, sans-serif',
+                  fontSize: 20, fontWeight: 700,
+                  color: sel ? 'var(--primary)' : 'var(--ink)',
+                  marginTop: 'auto',
+                }}>
+                  ₹{svc.price}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Bottom tray */}
       <AnimatePresence>
@@ -1274,7 +1423,8 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
               {/* Selected service pills */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
                 {cart.map(id => {
-                  const s = MOCK_SERVICES.find(x => x.id === id)!;
+                  const s = services.find(x => x.id === id);
+                  if (!s) return null;
                   return (
                     <span key={id} style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -1286,7 +1436,7 @@ function ServiceList({ cart, setCart }: { cart: string[]; setCart: (v: string[])
                       fontSize: 12, fontWeight: 700,
                       color: 'var(--primary)',
                     }}>
-                      {SVC_EMOJI[s.id]} {s.name}
+                      {s.emoji || '✂️'} {s.name}
                     </span>
                   );
                 })}
@@ -1981,7 +2131,7 @@ function UserScreen() {
 
       <div className="flex-col gap-3">
         {/* Single Owner Dashboard */}
-        <div className="card interactive" onClick={() => navigate('/owner/solo/dashboard')} style={{ marginBottom: 0 }}>
+        <div className="card interactive" onClick={() => navigate('/owner/solo/history')} style={{ marginBottom: 0 }}>
           <div className="flex items-start gap-4">
             <div className="icon-box" style={{ background: 'var(--tag-ok-bg)' }}>
               <User size={20} color="var(--tag-ok-ink)" />
@@ -1994,7 +2144,7 @@ function UserScreen() {
         </div>
 
         {/* Owner + Staff Dashboard */}
-        <div className="card interactive" onClick={() => navigate('/owner/team/dashboard')} style={{ marginBottom: 0 }}>
+        <div className="card interactive" onClick={() => navigate('/owner/team/history')} style={{ marginBottom: 0 }}>
           <div className="flex items-start gap-4">
             <div className="icon-box" style={{ background: 'var(--tag-warn-bg)' }}>
               <CalendarDays size={20} color="var(--tag-warn-ink)" />
@@ -2129,8 +2279,8 @@ function ListSalonScreen() {
         localStorage.setItem('salonista_owner_salon_id', data.data.id);
         localStorage.setItem('salonista_owner_salon', JSON.stringify(data.data));
 
-        showSuccess(`Salon listed successfully with ${uploadedImageUrls.length} photo${uploadedImageUrls.length > 1 ? 's' : ''}!`);
-        navigate(salonType === 'solo' ? '/owner/solo/dashboard' : '/owner/team/dashboard');
+        showSuccess(`Salon listed successfully with ${uploadedImageUrls.length} photo${uploadedImageUrls.length > 1 ? 's' : ''}! Let's add your service menu.`);
+        navigate(salonType === 'solo' ? '/owner/solo/services?openAdd=true' : '/owner/team/services?openAdd=true');
       } else {
         showError('Failed to list salon: ' + (data.error || 'Server error'));
       }
